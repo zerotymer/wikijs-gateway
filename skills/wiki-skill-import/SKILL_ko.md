@@ -25,14 +25,17 @@ skills/<skill-name>/
 
 ## 전제 조건
 
-게이트웨이가 실행 중이어야 하고, 다음이 환경 또는 셸에 설정되어 있어야 한다.
+게이트웨이에 접근 가능해야 한다. 기본 공개 엔드포인트는 다음과 같다.
 
 ```
-GATEWAY_URL=http://127.0.0.1:8088
-GATEWAY_TOKEN=<읽기-토큰>
+GATEWAY_URL=https://md-gw.zerotymer.net
 ```
 
-모든 요청에 `Authorization: Bearer $GATEWAY_TOKEN` 헤더를 사용한다.
+읽기 엔드포인트(`/health`, `/pages/by-uuid`, `/pages/by-path`, `/pages/search`,
+`/pages/by-paths`)는 **공개 — 토큰 불필요**.
+
+쓰기 엔드포인트(`/pages/patch-section`, `/pages/upsert`, `/pages/dry-run`)는
+`Authorization: Bearer $GATEWAY_ADMIN_TOKEN` 헤더가 필요하다. 수정/upsert 워크플로에서만 필요하다.
 
 ## 가져오기 전략
 
@@ -40,8 +43,9 @@ GATEWAY_TOKEN=<읽기-토큰>
 
 ```
 GET $GATEWAY_URL/pages/by-uuid?uuid=<uuid>[&type=<type>]
-Authorization: Bearer $GATEWAY_TOKEN
 ```
+
+읽기 요청에는 `Authorization` 헤더가 필요하지 않다.
 
 `type` 파라미터는 선택 사항이다. 호출자가 경로 prefix(예: `skill`, `guide`, `agent`)를 제공하면 전달한다. 생략하면 게이트웨이는 경로를 `<uuid>` 단독으로 해석한다. type에 관계없이 로컬 저장 위치는 항상 `skills/<name>/`이다.
 
@@ -68,8 +72,7 @@ Authorization: Bearer $GATEWAY_TOKEN
 2. 사용자에게 선택적 `type` 인자를 받는다(예: `skill`, `guide`, `agent`). 제공하지 않으면 비워둔다 — 임의로 기본값을 넣지 않는다.
 3. 게이트웨이를 호출한다.
    ```bash
-   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" \
-     -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
+   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" | jq .
    # type을 제공하지 않은 경우 &type=<type> 생략
    ```
 4. 응답을 파싱한다.
@@ -91,7 +94,7 @@ Authorization: Bearer $GATEWAY_TOKEN
 사용자가 `LLM-wiki <uuid> 참고해줘` 같은 프롬프트로 현재 작업에서 Wiki.js 스킬을 참조하라고 요청하면 이 워크플로를 사용한다.
 
 1. 사용자가 UUID를 제공했는지 확인한다.
-2. UUID(와 type이 있으면 함께)를 사용해 게이트웨이의 `GET /pages/by-uuid`를 호출한다.
+2. UUID(와 type이 있으면 함께)를 사용해 게이트웨이의 `GET /pages/by-uuid`를 호출한다. 읽기 요청에는 인증 헤더 불필요.
 3. 가져온 `content` 필드를 작업 로컬 컨텍스트로 사용한다.
 4. 가져온 지침이 관련 있고 더 높은 우선순위의 system, developer, project 지침과 충돌하지 않을 때 따른다.
 5. 어떤 UUID를 참조했는지, 어떤 locale이 있었는지 짧게 보고한다.
@@ -133,7 +136,7 @@ locale 값이 `null`이면 해당 locale 페이지가 존재하지 않는 것이
 | 상황 | 대응 |
 |------|------|
 | 게이트웨이 연결 실패 | `curl $GATEWAY_URL/health`로 진단; 진행 중단 |
-| 401 / 403 | `GATEWAY_TOKEN`이 올바르게 설정되었는지 확인 |
+| 쓰기 시 401 / 403 | `GATEWAY_ADMIN_TOKEN`이 올바르게 설정되었는지 확인 |
 | 두 locale 모두 404 | uuid에 대해 `PAGE_NOT_FOUND` 보고; 사용자가 best-effort를 요청하지 않으면 중단 |
 | 한 locale만 404 | 가능한 locale을 작성; 파일 헤더에 누락된 locale 기록 |
 | `content`가 비어 있음 | 사용자에게 경고; 빈 스킬 파일 작성 금지 |

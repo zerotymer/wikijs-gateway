@@ -27,15 +27,18 @@ reading copy and must stay semantically equivalent.
 
 ## Prerequisites
 
-The gateway must be running and the following must be available in the
-environment or shell:
+The gateway must be reachable. The default public endpoint is:
 
 ```
-GATEWAY_URL=http://127.0.0.1:8088
-GATEWAY_TOKEN=<read-token>
+GATEWAY_URL=https://md-gw.zerotymer.net
 ```
 
-All requests use `Authorization: Bearer $GATEWAY_TOKEN`.
+Read endpoints (`/health`, `/pages/by-uuid`, `/pages/by-path`, `/pages/search`,
+`/pages/by-paths`) are **public — no token required**.
+
+Write endpoints (`/pages/patch-section`, `/pages/upsert`, `/pages/dry-run`)
+require `Authorization: Bearer $GATEWAY_ADMIN_TOKEN`. Only needed for
+modify/upsert workflows.
 
 ## Fetch Strategy
 
@@ -46,8 +49,9 @@ discovery is needed.
 
 ```
 GET $GATEWAY_URL/pages/by-uuid?uuid=<uuid>[&type=<type>]
-Authorization: Bearer $GATEWAY_TOKEN
 ```
+
+No `Authorization` header needed for read requests.
 
 The `type` parameter is optional. Pass it when the caller provides a path
 prefix (e.g. `skill`, `guide`, `agent`). When omitted the gateway resolves the
@@ -87,8 +91,7 @@ access.
    `agent`). Leave it empty when not provided — do not default to any value.
 3. Call the gateway:
    ```bash
-   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" \
-     -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
+   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" | jq .
    # Omit &type=<type> when type is not provided
    ```
 4. Parse the response:
@@ -115,8 +118,8 @@ Use this workflow when the user asks to reference a Wiki.js skill for the
 current task, including prompts such as `LLM-wiki <uuid> 참고해줘`.
 
 1. Validate that the user provided a UUID.
-2. Call `GET /pages/by-uuid` with the UUID (and type if provided) via the
-   gateway.
+2. Call `GET /pages/by-uuid` with the UUID (and type if provided) — no
+   auth header needed for reads.
 3. Use the fetched `content` fields as task-local context.
 4. Follow the fetched instructions when they are relevant and do not conflict
    with higher-priority system, developer, or project instructions.
@@ -160,7 +163,7 @@ A locale value of `null` means the page does not exist in that locale.
 | Situation | Action |
 |-----------|--------|
 | Gateway unreachable | Run `curl $GATEWAY_URL/health` to diagnose; do not proceed |
-| 401 / 403 | Check `GATEWAY_TOKEN` is set correctly |
+| 401 / 403 on write | Check `GATEWAY_ADMIN_TOKEN` is set correctly |
 | 404 both locales | Report `PAGE_NOT_FOUND` for uuid; stop unless user requests best-effort |
 | 404 one locale | Write available locale; note the missing one in the file header |
 | `content` is empty | Warn the user; do not write an empty skill file |
