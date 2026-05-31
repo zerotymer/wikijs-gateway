@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 
+RUN mkdir -p /audit && chown nobody:nogroup /audit
+
 USER nobody
 
 EXPOSE 8080

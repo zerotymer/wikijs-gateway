@@ -5,7 +5,7 @@ import pytest
 import respx
 
 from app.locking import compute_hash
-from app.wikijs_client import WikiJsClient, WikiJsError
+from app.wikijs_client import WikiJsClient, WikiJsError, _normalize_path
 
 GRAPHQL_URL = "http://wiki:3000/graphql"
 API_TOKEN = "test-wiki-token"
@@ -113,6 +113,46 @@ async def test_ping_graphql_error(client):
     respx.post(GRAPHQL_URL).mock(return_value=_graphql_error_response("Unauthorized"))
     result = await client.ping()
     assert result is False
+    await client.aclose()
+
+
+def test_normalize_path_strips_leading_slash():
+    assert _normalize_path("/agent/test") == "agent/test"
+    assert _normalize_path("agent/test") == "agent/test"
+    assert _normalize_path("/home") == "home"
+    assert _normalize_path("home") == "home"
+
+
+def test_normalize_path_preserves_nested():
+    assert _normalize_path("/ops/runbook/guide") == "ops/runbook/guide"
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_get_page_by_path_wikijs_6003_returns_none(client):
+    """Wiki.js returns error code 6003 (PageNotFound) instead of null for missing pages."""
+    respx.post(GRAPHQL_URL).mock(
+        return_value=httpx.Response(200, json={
+            "errors": [{"message": "This page does not exist.", "extensions": {"exception": {"code": 6003}}}]
+        })
+    )
+    page = await client.get_page_by_path("nonexistent/path", "ko")
+    assert page is None
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_get_page_by_path_leading_slash_normalized(client):
+    """Leading slash in path is stripped before sending to Wiki.js."""
+    route = respx.post(GRAPHQL_URL).mock(
+        return_value=_graphql_response({"pages": {"singleByPath": _SAMPLE_PAGE}})
+    )
+    await client.get_page_by_path("/agent/test-page", "ko")
+    request_body = route.calls[0].request.read()
+    import json
+    body = json.loads(request_body)
+    assert body["variables"]["path"] == "agent/test-page"
     await client.aclose()
 
 

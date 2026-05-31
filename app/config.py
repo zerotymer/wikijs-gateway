@@ -1,8 +1,9 @@
 from enum import Enum
 from functools import lru_cache
+from typing import Annotated
 
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class GatewayMode(str, Enum):
@@ -19,7 +20,7 @@ class Settings(BaseSettings):
     gateway_token: str
     gateway_mode: GatewayMode = GatewayMode.dry_run
     default_locale: str = "ko"
-    allow_path_prefixes: list[str] = ["/agent", "/draft"]
+    allow_path_prefixes: Annotated[list[str], NoDecode] = Field(default=["/agent", "/draft"])
     audit_dir: str = "/audit"
     render_after_write: bool = False
 

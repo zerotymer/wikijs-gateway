@@ -1,7 +1,7 @@
-fastapi==0.115.*
-uvicorn[standard]==0.34.*
-httpx==0.28.*
-pydantic==2.*
-pydantic-settings==2.*
-python-dotenv==1.*
-respx==0.23.*
+fastapi==0.115.14
+uvicorn[standard]==0.34.3
+httpx==0.28.1
+pydantic==2.13.4
+pydantic-settings==2.14.1
+python-dotenv==1.2.2
+respx==0.23.1

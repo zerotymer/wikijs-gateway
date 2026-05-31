@@ -84,6 +84,11 @@ mutation CreatePage(
 """
 
 
+def _normalize_path(path: str) -> str:
+    """Strip leading slash — Wiki.js stores paths without it."""
+    return path.lstrip("/")
+
+
 class WikiJsError(Exception):
     def __init__(self, errors: list[dict]) -> None:
         self.errors = errors
@@ -104,11 +109,15 @@ class WikiJsClient:
     async def get_page_by_path(self, path: str, locale: str) -> PageResponse | None:
         resp = await self._client.post(
             self._graphql_url,
-            json={"query": _QUERY_GET_PAGE_BY_PATH, "variables": {"path": path, "locale": locale}},
+            json={"query": _QUERY_GET_PAGE_BY_PATH, "variables": {"path": _normalize_path(path), "locale": locale}},
         )
         resp.raise_for_status()
         body = resp.json()
         if errors := body.get("errors"):
+            # Wiki.js returns error code 6003 (PageNotFound) instead of null for missing pages
+            codes = {e.get("extensions", {}).get("exception", {}).get("code") for e in errors}
+            if 6003 in codes:
+                return None
             raise WikiJsError(errors)
         page = body["data"]["pages"]["singleByPath"]
         if page is None:
@@ -173,7 +182,7 @@ class WikiJsClient:
         tags: list[str] | None = None,
     ) -> dict:
         variables = {
-            "path": path,
+            "path": _normalize_path(path),
             "locale": locale,
             "title": title,
             "description": description,
