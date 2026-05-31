@@ -109,6 +109,8 @@ wikijs-agent-gateway/
 | `POST` | `/pages/dry-run` | patch diff만 반환, 실제 쓰기 없음 |
 | `POST` | `/pages/patch-section` | section 단위 patch (write 모드에서만 실행) |
 | `POST` | `/pages/upsert` | page 생성/수정 (allowlist 경로만) |
+| `POST` | `/pages/by-paths` | 다건 page 조회 (전 모드, 최대 BATCH_MAX_SIZE) |
+| `POST` | `/pages/bulk` | 혼합 배치 작업 (upsert/patch-section/dry-run 항목 배열) |
 
 모든 요청은 `Authorization: Bearer <GATEWAY_TOKEN>` 헤더 필요.
 
@@ -210,11 +212,9 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 
 | UUID | 파일 | 상태 |
 |------|------|------|
-| `0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001` | [step1-foundation.md](instructions/.completed/0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001.md) | completed |
-| `0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002` | [step2-wikijs-client-read.md](instructions/.completed/0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002.md) | completed |
-| `0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004` | [step4-audit-write.md](instructions/.completed/0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004.md) | completed |
-| `0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005` | [step5-docker-deploy.md](instructions/.completed/0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005.md) | completed |
 | `c5ff90a6-6359-497c-8404-ccfe27bf5580` | [step6-search.md](instructions/.completed/c5ff90a6-6359-497c-8404-ccfe27bf5580.md) | completed |
+| `b60f3f2e-8002-44f2-8960-b417c803331e` | [step7-bulk-api.md](instructions/.completed/b60f3f2e-8002-44f2-8960-b417c803331e.md) | completed |
+| `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/step8-auth-roles.md) | pending |
 
 
 ## 개발 규칙

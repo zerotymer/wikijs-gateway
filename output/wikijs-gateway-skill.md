@@ -1,10 +1,10 @@
 ---
 name: wikijs-gateway
 description: |
-  Skill for reading, searching, patching, and creating Wiki.js pages via wikijs-agent-gateway.
+  Skill for reading, searching, patching, creating, and bulk-processing Wiki.js pages via wikijs-agent-gateway.
   Uses the gateway endpoint (http://127.0.0.1:8088) with GATEWAY_TOKEN.
-  Covers optimistic locking (baseHash), patch operation selection, search, and upsert flows.
-version: "1.1"
+  Covers optimistic locking (baseHash), patch operation selection, search, upsert, and bulk batch flows.
+version: "1.2"
 updated: "2026-05-31"
 ---
 
@@ -236,6 +236,98 @@ current status content
 | `PATH_NOT_ALLOWED` | Path outside allowlist | Check ALLOW_PATH_PREFIXES |
 | `PATCH_ERROR` | heading/marker not found | Verify markers in document |
 | `WIKIJS_UNREACHABLE` | Wiki.js connection failure | Diagnose with /health |
+
+---
+
+## 7. Bulk Page Fetch
+
+Fetch multiple pages in one request. Available in all modes.
+
+```bash
+curl -s -X POST $GATEWAY_URL/pages/by-paths \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paths": [
+      {"path": "/agent/page1", "locale": "ko"},
+      {"path": "/agent/page2"}
+    ]
+  }' | jq .
+```
+
+**Response example**
+```json
+{
+  "ok": true,
+  "results": [
+    {"index": 0, "path": "/agent/page1", "ok": true, "page": { "..." : "..." }},
+    {"index": 1, "path": "/agent/page2", "ok": false, "error": "PAGE_NOT_FOUND"}
+  ],
+  "summary": {"total": 2, "succeeded": 1, "failed": 1}
+}
+```
+
+- `locale` omitted → uses `DEFAULT_LOCALE`.
+- Maximum `BATCH_MAX_SIZE` paths (default 50). Exceeding returns 422 `BATCH_TOO_LARGE`.
+- Per-item failures do not abort the request.
+
+---
+
+## 8. Bulk Operations
+
+Submit upsert, patch-section, and dry-run items in a single request.
+
+```bash
+curl -s -X POST $GATEWAY_URL/pages/bulk \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operations": [
+      {
+        "id": "op-1", "type": "upsert",
+        "path": "/agent/page1", "locale": "ko",
+        "title": "Title", "content": "# Content"
+      },
+      {
+        "id": "op-2", "type": "patch-section",
+        "path": "/agent/page2", "locale": "ko",
+        "baseHash": "<hash>",
+        "operation": {"type": "replace_between_markers", "name": "status", "content": "Done"}
+      },
+      {
+        "id": "op-3", "type": "dry-run",
+        "path": "/agent/page3", "locale": "ko",
+        "baseHash": "<hash>",
+        "operation": {"type": "append_under_heading", "heading": "## Log", "content": "- entry"}
+      }
+    ]
+  }' | jq .
+```
+
+**Response** (HTTP 200 even when individual items fail)
+```json
+{
+  "ok": true,
+  "results": [
+    {"id": "op-1", "type": "upsert", "ok": true, "result": {"ok": true, "created": true, "pageId": 42, "path": "/agent/page1"}},
+    {"id": "op-2", "type": "patch-section", "ok": false, "error": "PAGE_CHANGED", "currentHash": "abc..."},
+    {"id": "op-3", "type": "dry-run", "ok": true, "result": {"ok": true, "mode": "dry_run", "changed": true, "diff": "...", "newHash": "xyz..."}}
+  ],
+  "summary": {"total": 3, "succeeded": 2, "failed": 1}
+}
+```
+
+**Mode behaviour per operation type**
+
+| type | read_only | dry_run | write |
+|------|-----------|---------|-------|
+| `upsert` | MODE_NOT_ALLOWED | MODE_NOT_ALLOWED | executes write |
+| `patch-section` | MODE_NOT_ALLOWED | returns diff only | executes write |
+| `dry-run` | MODE_NOT_ALLOWED | returns diff | returns diff |
+
+- Maximum `BATCH_MAX_SIZE` operations (default 50). Exceeding returns 422 `BATCH_TOO_LARGE`.
+- Operations run concurrently up to `BATCH_CONCURRENCY` (default 10).
+- `id`: client-assigned string for result matching (duplicates allowed).
 
 ---
 
