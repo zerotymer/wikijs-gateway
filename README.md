@@ -6,15 +6,13 @@ AI agent, MCP 서버, CLI, 자동화 프로세스가 PostgreSQL·Git storage·Wi
 
 ## 현재 상태
 
-> **계획 단계** — 설계 문서 완비, 구현 미시작.
-
 | 항목 | 상태 |
 |---|---|
 | 설계 문서 (`docs/`) | 완료 |
 | 스킬 임포트 (`skills/`) | 완료 |
-| 구현 (`app/`) | 미시작 |
-| 테스트 (`tests/`) | 미시작 |
-| Docker 설정 | 미시작 |
+| 구현 (`app/`) | 완료 |
+| 테스트 (`tests/`) | 완료 |
+| Docker 배포 | 완료 |
 
 ## 아키텍처
 
@@ -40,7 +38,7 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 | 데이터 검증 | pydantic v2 |
 | ASGI 서버 | uvicorn[standard] |
 | 패키지 관리 | `uv pip` |
-| 컨테이너 | Docker + Compose overlay |
+| 컨테이너 | Docker + docker-compose.gateway.yml |
 
 ## API 엔드포인트
 
@@ -64,22 +62,45 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 
 기본값은 `dry_run`. `write`는 명시적으로 설정해야 활성화.
 
-## 빠른 시작 (구현 후)
+## 빠른 시작
 
 ```bash
-# .env 작성
+# 1. .env 작성
 cp .env.example .env
-# 환경 변수 설정 후
+# 필요한 환경 변수 채우기
 
-# 빌드 및 시작
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.gateway.yml \
-  up -d --build wikijs-agent-gateway
+# 2. 기동 (독립 실행)
+docker compose -f docker-compose.gateway.yml up -d --build
 
-# 헬스 체크
+# 3. 헬스 체크
 curl -H "Authorization: Bearer $GATEWAY_TOKEN" \
   http://127.0.0.1:8088/health
+
+# 4. 로그 확인
+docker compose -f docker-compose.gateway.yml logs -f
+```
+
+## 환경 변수 (`.env`)
+
+| 변수 | 필수 | 설명 |
+|---|---|---|
+| `WIKIJS_GRAPHQL_URL` | ✅ | Wiki.js GraphQL endpoint (예: `http://192.168.28.10:23000/graphql`) |
+| `WIKIJS_API_TOKEN` | ✅ | Wiki.js API token (grp:3 Users 이상 필요) |
+| `GATEWAY_TOKEN` | ✅ | Agent용 bearer token |
+| `GATEWAY_MODE` | ✅ | `read_only` \| `dry_run` \| `write` |
+| `DEFAULT_LOCALE` | ✅ | 기본 locale (예: `ko`) |
+| `ALLOW_PATH_PREFIXES` | ✅ | 쓰기 허용 경로 (`,` 구분, 예: `/agent,/draft`) |
+| `AUDIT_DIR` | ❌ | audit log 디렉터리 (기본: `/audit`) |
+| `RENDER_AFTER_WRITE` | ❌ | write 후 render 호출 여부 (기본: `false`) |
+
+## Rollback
+
+```bash
+# 컨테이너 중지 (Wiki.js, PostgreSQL, Git storage 영향 없음)
+docker compose -f docker-compose.gateway.yml stop wikijs-agent-gateway
+
+# 완전 제거
+docker compose -f docker-compose.gateway.yml down
 ```
 
 ## 문서

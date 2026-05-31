@@ -1,0 +1,22 @@
+services:
+  wikijs-agent-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - gateway-audit:/audit
+    environment:
+      WIKIJS_GRAPHQL_URL: ${WIKIJS_GRAPHQL_URL:-http://wiki:3000/graphql}
+      WIKIJS_API_TOKEN: ${WIKIJS_API_TOKEN}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      GATEWAY_MODE: ${GATEWAY_MODE:-read_only}
+      DEFAULT_LOCALE: ${DEFAULT_LOCALE:-ko}
+      ALLOW_PATH_PREFIXES: ${ALLOW_PATH_PREFIXES:-/agent,/draft}
+      AUDIT_DIR: ${AUDIT_DIR:-/audit}
+      RENDER_AFTER_WRITE: ${RENDER_AFTER_WRITE:-false}
+    restart: unless-stopped
+
+volumes:
+  gateway-audit:

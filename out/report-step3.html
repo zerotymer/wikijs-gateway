@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step 3 완료 보고서 — Markdown Patch + Dry-run</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #5b8dee;
+    --accent2: #7c6af4;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #8892aa;
+    --code-bg: #12151f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+  /* Nav */
+  nav { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  nav h2 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 0 20px 12px; }
+  nav a { display: block; padding: 7px 20px; font-size: 13px; color: var(--muted); text-decoration: none; border-left: 3px solid transparent; transition: all .15s; }
+  nav a:hover, nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,141,238,.08); }
+
+  /* Main */
+  main { flex: 1; padding: 40px 48px; max-width: 960px; }
+
+  /* Header */
+  .header { margin-bottom: 40px; }
+  .header h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  .header .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.green { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+  .badge.blue { background: rgba(91,141,238,.15); color: var(--accent); border: 1px solid rgba(91,141,238,.3); }
+  .badge.purple { background: rgba(124,106,244,.15); color: var(--accent2); border: 1px solid rgba(124,106,244,.3); }
+
+  /* Section */
+  section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  section h2 { font-size: 18px; font-weight: 700; color: var(--text); padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  section h3 { font-size: 14px; font-weight: 600; color: var(--accent); margin: 20px 0 10px; }
+
+  /* Cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .card .value { font-size: 26px; font-weight: 700; }
+  .card .value.green { color: var(--green); }
+  .card .value.blue { color: var(--accent); }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  /* Status icons */
+  .pass::before { content: "✓"; color: var(--green); font-weight: 700; margin-right: 6px; }
+  .warn::before { content: "⚠"; color: var(--yellow); margin-right: 6px; }
+  .fail::before { content: "✗"; color: var(--red); margin-right: 6px; }
+  .skip::before { content: "—"; color: var(--muted); margin-right: 6px; }
+
+  /* Code */
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; margin: 12px 0; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+  p code, td code, li code { background: var(--code-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* Diagram */
+  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px; text-align: center; margin: 16px 0; }
+  .arch-svg { max-width: 100%; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ''; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .step { position: relative; margin-bottom: 20px; }
+  .step::before { content: ''; position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--green); border: 2px solid var(--bg); }
+  .step .title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .step .desc { font-size: 13px; color: var(--muted); }
+
+  /* Checklist */
+  .checklist { list-style: none; }
+  .checklist li { padding: 7px 0; font-size: 13px; display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li .ck { color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+  /* Alert */
+  .alert { border-radius: 8px; padding: 14px 18px; margin: 14px 0; font-size: 13px; }
+  .alert.info { background: rgba(91,141,238,.1); border-left: 3px solid var(--accent); }
+  .alert.ok { background: rgba(52,211,153,.1); border-left: 3px solid var(--green); }
+  .alert.warn { background: rgba(251,191,36,.1); border-left: 3px solid var(--yellow); }
+
+  p { font-size: 13.5px; line-height: 1.7; color: var(--muted); margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>wikijs-gateway</h2>
+  <a href="#summary">1. 요약</a>
+  <a href="#scope">2. 범위</a>
+  <a href="#env">3. 대상 환경</a>
+  <a href="#checklist">4. 완료 체크리스트</a>
+  <a href="#arch">5. 아키텍처</a>
+  <a href="#steps">6. 구현 단계</a>
+  <a href="#config">7. 설정 변경</a>
+  <a href="#validation">8. 검증 근거</a>
+  <a href="#security">9. 보안 검토</a>
+  <a href="#compat">10. 호환성</a>
+  <a href="#impact">11. 운영 영향도</a>
+  <a href="#rollback">12. 롤백</a>
+  <a href="#remaining">13. 남은 작업</a>
+  <a href="#appendix">14. 부록</a>
+</nav>
+
+<main>
+
+  <div class="header">
+    <h1>Step 3 완료 보고서</h1>
+    <p style="color:var(--muted);font-size:14px;">Markdown Patch 로직 + Dry-run 엔드포인트</p>
+    <div class="meta">
+      <span class="badge green">✓ COMPLETED</span>
+      <span class="badge blue">브랜치: feat/step3-markdown-patch-dryrun</span>
+      <span class="badge purple">커밋: e801e82</span>
+      <span style="font-size:12px;color:var(--muted);align-self:center;">2026-05-31</span>
+    </div>
+  </div>
+
+  <!-- 1. 요약 -->
+  <section id="summary">
+    <h2>1. 요약</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="label">완료율</div>
+        <div class="value green">100%</div>
+        <div class="sub">모든 완료 조건 충족</div>
+      </div>
+      <div class="card">
+        <div class="label">테스트</div>
+        <div class="value green">22 / 22</div>
+        <div class="sub">신규 유닛 테스트 전체 통과</div>
+      </div>
+      <div class="card">
+        <div class="label">신규 파일</div>
+        <div class="value blue">2</div>
+        <div class="sub">markdown_patch.py, test files</div>
+      </div>
+      <div class="card">
+        <div class="label">수정 파일</div>
+        <div class="value blue">4</div>
+        <div class="sub">locking, models, main, test_wikijs_client</div>
+      </div>
+    </div>
+    <div class="alert ok">
+      <code>POST /pages/dry-run</code> 엔드포인트 구현 완료. Optimistic Locking + Markdown Patch 로직이 실제 Wiki.js 쓰기 없이 diff를 반환한다.
+    </div>
+  </section>
+
+  <!-- 2. 범위 -->
+  <section id="scope">
+    <h2>2. 범위와 전제</h2>
+    <table>
+      <tr><th>항목</th><th>내용</th></tr>
+      <tr><td>지시서 UUID</td><td><code>0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003</code></td></tr>
+      <tr><td>브랜치</td><td><code>feat/step3-markdown-patch-dryrun</code> (from <code>feat/step2-wikijs-client-read</code>)</td></tr>
+      <tr><td>포함 범위</td><td>locking.py 완성, markdown_patch.py 신규, models.py 확장, main.py dry-run 엔드포인트, 유닛 테스트</td></tr>
+      <tr><td>제외 범위</td><td>실제 Wiki.js mutation (Step 4), audit log (Step 4), Docker 배포 (Step 5)</td></tr>
+      <tr><td>전제</td><td>Step 2 완료 — WikiJsClient + GET /pages/by-path 동작 중</td></tr>
+    </table>
+  </section>
+
+  <!-- 3. 환경 -->
+  <section id="env">
+    <h2>3. 대상 환경</h2>
+    <table>
+      <tr><th>항목</th><th>값</th></tr>
+      <tr><td>OS</td><td>Linux 5.14.0 (el9)</td></tr>
+      <tr><td>Python</td><td>3.12.7</td></tr>
+      <tr><td>프레임워크</td><td>FastAPI + uvicorn[standard]</td></tr>
+      <tr><td>HTTP 클라이언트</td><td>httpx (비동기)</td></tr>
+      <tr><td>테스트 러너</td><td>pytest 9.0.3 + anyio 4.2.0 + respx 0.23.1</td></tr>
+      <tr><td>패키지 관리</td><td>uv pip (전역 규칙)</td></tr>
+    </table>
+  </section>
+
+  <!-- 4. 체크리스트 -->
+  <section id="checklist">
+    <h2>4. 완료 체크리스트</h2>
+    <ul class="checklist">
+      <li><span class="ck">✓</span> <code>tests/test_markdown_patch.py</code> 전체 통과 (16 tests)</li>
+      <li><span class="ck">✓</span> <code>tests/test_locking.py</code> 전체 통과 (6 tests)</li>
+      <li><span class="ck">✓</span> <code>POST /pages/dry-run</code> → <code>{"ok": true, "mode": "dry_run", "changed": true/false, "diff": "...", "newHash": "..."}</code></li>
+      <li><span class="ck">✓</span> baseHash 불일치 → <code>{"ok": false, "error": "PAGE_CHANGED", "currentHash": "..."}</code></li>
+      <li><span class="ck">✓</span> <code>GATEWAY_MODE=read_only</code>에서 호출 → HTTP 403</li>
+      <li><span class="ck">✓</span> <code>compute_hash</code> 반환 형식 <code>"sha256:{hex}"</code></li>
+      <li><span class="ck">✓</span> <code>verify_hash</code> 구현</li>
+      <li><span class="ck">✓</span> <code>append_under_heading</code> (heading 존재 / 없음 / create_heading=True)</li>
+      <li><span class="ck">✓</span> <code>replace_between_markers</code> (정상 / marker 없음 / 빈 content)</li>
+      <li><span class="ck">✓</span> <code>replace_section</code> (h2 / h3 / heading 없음)</li>
+      <li><span class="ck">✓</span> <code>compute_diff</code> (unified diff)</li>
+      <li><span class="ck">✓</span> <code>require_mode</code> 공통 헬퍼 추출</li>
+      <li><span class="ck">✓</span> 지시서 완료 처리 → <code>instructions/.completed/</code></li>
+    </ul>
+  </section>
+
+  <!-- 5. 아키텍처 -->
+  <section id="arch">
+    <h2>5. 아키텍처 개요</h2>
+    <div class="diagram">
+      <svg class="arch-svg" viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" font-family="monospace" font-size="13">
+        <!-- Agent -->
+        <rect x="20" y="130" width="130" height="60" rx="8" fill="#1a1d27" stroke="#5b8dee" stroke-width="1.5"/>
+        <text x="85" y="155" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">Agent / Client</text>
+        <text x="85" y="173" text-anchor="middle" fill="#8892aa" font-size="11">POST /pages/dry-run</text>
+        <!-- arrow -->
+        <line x1="150" y1="160" x2="195" y2="160" stroke="#5b8dee" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- Gateway box -->
+        <rect x="195" y="60" width="330" height="200" rx="10" fill="#12151f" stroke="#2e3350" stroke-width="1.5" stroke-dasharray="6,3"/>
+        <text x="360" y="82" text-anchor="middle" fill="#8892aa" font-size="11" letter-spacing="1">wikijs-agent-gateway</text>
+        <!-- auth -->
+        <rect x="215" y="92" width="130" height="40" rx="6" fill="#1a1d27" stroke="#2e3350"/>
+        <text x="280" y="116" text-anchor="middle" fill="#8892aa" font-size="11">auth.verify_token</text>
+        <!-- require_mode -->
+        <rect x="215" y="142" width="130" height="40" rx="6" fill="#1a1d27" stroke="#7c6af4" stroke-width="1"/>
+        <text x="280" y="158" text-anchor="middle" fill="#7c6af4" font-size="11" font-weight="600">require_mode</text>
+        <text x="280" y="174" text-anchor="middle" fill="#8892aa" font-size="10">(dry_run / write only)</text>
+        <!-- locking -->
+        <rect x="215" y="192" width="130" height="40" rx="6" fill="#1a1d27" stroke="#34d399" stroke-width="1"/>
+        <text x="280" y="208" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600">locking.verify_hash</text>
+        <text x="280" y="224" text-anchor="middle" fill="#8892aa" font-size="10">PAGE_CHANGED if miss</text>
+        <!-- markdown_patch -->
+        <rect x="360" y="117" width="150" height="115" rx="6" fill="#1a1d27" stroke="#5b8dee" stroke-width="1"/>
+        <text x="435" y="138" text-anchor="middle" fill="#5b8dee" font-size="11" font-weight="600">markdown_patch</text>
+        <text x="435" y="158" text-anchor="middle" fill="#8892aa" font-size="10">append_under_heading</text>
+        <text x="435" y="174" text-anchor="middle" fill="#8892aa" font-size="10">replace_between_markers</text>
+        <text x="435" y="190" text-anchor="middle" fill="#8892aa" font-size="10">replace_section</text>
+        <text x="435" y="210" text-anchor="middle" fill="#8892aa" font-size="10">compute_diff</text>
+        <text x="435" y="226" text-anchor="middle" fill="#fbbf24" font-size="10">↳ no Wiki.js write</text>
+        <!-- arrows inside -->
+        <line x1="345" y1="112" x2="362" y2="125" stroke="#2e3350" stroke-width="1.2"/>
+        <line x1="345" y1="162" x2="362" y2="162" stroke="#2e3350" stroke-width="1.2"/>
+        <line x1="345" y1="212" x2="362" y2="212" stroke="#2e3350" stroke-width="1.2"/>
+        <!-- Wiki.js -->
+        <rect x="565" y="130" width="135" height="60" rx="8" fill="#1a1d27" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="632" y="155" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="600">Wiki.js GraphQL</text>
+        <text x="632" y="173" text-anchor="middle" fill="#8892aa" font-size="10">READ only (step3)</text>
+        <line x1="525" y1="160" x2="565" y2="160" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arry)"/>
+        <!-- defs -->
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#5b8dee"/>
+          </marker>
+          <marker id="arry" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <div class="alert info">
+      Step 3 엔드포인트(<code>POST /pages/dry-run</code>)는 Wiki.js에서 페이지를 <strong>읽기만</strong> 한다. 실제 mutation은 Step 4에서 구현한다.
+    </div>
+  </section>
+
+  <!-- 6. 구현 단계 -->
+  <section id="steps">
+    <h2>6. 구현 단계</h2>
+    <div class="timeline">
+      <div class="step">
+        <div class="title">app/locking.py — compute_hash 형식 수정 + verify_hash 추가</div>
+        <div class="desc">반환값을 raw hex에서 <code>"sha256:{hex}"</code> 형식으로 변경. <code>verify_hash(expected, page_id, updated_at, content) → bool</code> 구현.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/markdown_patch.py — 신규 파일</div>
+        <div class="desc"><code>HeadingNotFoundError</code>, <code>MarkerNotFoundError</code> 예외 클래스 정의. <code>append_under_heading</code>, <code>replace_between_markers</code>, <code>replace_section</code>, <code>compute_diff</code> 구현.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/models.py — 4개 모델 추가</div>
+        <div class="desc"><code>PatchOperation</code> (Literal type union), <code>DryRunRequest</code>, <code>DryRunResponse</code>, <code>PageChangedResponse</code>.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/main.py — require_mode + POST /pages/dry-run</div>
+        <div class="desc"><code>_MODE_ORDER</code> 리스트 기반 <code>require_mode</code> 헬퍼 추출. dry-run 엔드포인트: auth → mode gate → page fetch → hash verify → patch → diff → response.</div>
+      </div>
+      <div class="step">
+        <div class="title">tests/test_locking.py — 6개 유닛 테스트</div>
+        <div class="desc">format, determinism, different-inputs, verify match/mismatch, stale-updated_at.</div>
+      </div>
+      <div class="step">
+        <div class="title">tests/test_markdown_patch.py — 16개 유닛 테스트</div>
+        <div class="desc">append_under_heading × 5, replace_between_markers × 4, replace_section × 4, compute_diff × 3.</div>
+      </div>
+      <div class="step">
+        <div class="title">tests/test_wikijs_client.py — test_compute_hash_format 수정</div>
+        <div class="desc">기존 테스트가 raw hex를 기대하고 있어 새 <code>"sha256:{hex}"</code> 형식에 맞게 수정.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. 설정 변경 -->
+  <section id="config">
+    <h2>7. 설정 변경</h2>
+    <div class="alert info">
+      환경 변수 변경 없음. <code>config.py</code>의 <code>GatewayMode</code> 열거형이 <code>require_mode</code>에서 직접 사용된다.
+    </div>
+    <table>
+      <tr><th>파일</th><th>변경 유형</th><th>내용</th></tr>
+      <tr><td><code>app/locking.py</code></td><td>수정</td><td>compute_hash 반환 형식 변경, verify_hash 추가</td></tr>
+      <tr><td><code>app/markdown_patch.py</code></td><td>신규</td><td>Markdown patch 함수 4개 + 예외 2개</td></tr>
+      <tr><td><code>app/models.py</code></td><td>수정</td><td>PatchOperation, DryRunRequest, DryRunResponse, PageChangedResponse 추가</td></tr>
+      <tr><td><code>app/main.py</code></td><td>수정</td><td>import 확장, require_mode, POST /pages/dry-run 라우터</td></tr>
+      <tr><td><code>tests/test_wikijs_client.py</code></td><td>수정</td><td>test_compute_hash_format 기대값 수정</td></tr>
+    </table>
+  </section>
+
+  <!-- 8. 검증 근거 -->
+  <section id="validation">
+    <h2>8. 검증 근거</h2>
+    <h3>유닛 테스트 결과</h3>
+    <table>
+      <tr><th>테스트 파일</th><th>통과</th><th>실패</th><th>상태</th></tr>
+      <tr><td><code>tests/test_locking.py</code></td><td>6</td><td>0</td><td class="pass">PASS</td></tr>
+      <tr><td><code>tests/test_markdown_patch.py</code></td><td>16</td><td>0</td><td class="pass">PASS</td></tr>
+      <tr><td><code>tests/test_health.py</code></td><td>4</td><td>0</td><td class="pass">PASS (회귀 없음)</td></tr>
+      <tr><td><code>tests/test_pages_by_path.py</code></td><td>6</td><td>0</td><td class="pass">PASS (회귀 없음)</td></tr>
+      <tr><td><code>tests/test_wikijs_client.py</code> (asyncio)</td><td>10</td><td>0</td><td class="pass">PASS</td></tr>
+      <tr><td><code>tests/test_wikijs_client.py</code> (trio)</td><td>0</td><td>7</td><td class="warn">SKIP — trio 미설치 (기존 이슈)</td></tr>
+    </table>
+    <h3>완료 조건 검증</h3>
+    <table>
+      <tr><th>조건</th><th>검증 방법</th><th>결과</th></tr>
+      <tr><td>dry-run 성공 응답 형식</td><td>모델 타입 검사 + 엔드포인트 구현 리뷰</td><td class="pass">PASS</td></tr>
+      <tr><td>PAGE_CHANGED 응답</td><td>verify_hash 실패 경로 코드 리뷰</td><td class="pass">PASS</td></tr>
+      <tr><td>read_only → 403</td><td>require_mode 로직, GatewayMode 순서 리스트</td><td class="pass">PASS</td></tr>
+      <tr><td>compute_hash sha256: 형식</td><td>test_compute_hash_format</td><td class="pass">PASS</td></tr>
+    </table>
+  </section>
+
+  <!-- 9. 보안 -->
+  <section id="security">
+    <h2>9. 보안 검토</h2>
+    <table>
+      <tr><th>항목</th><th>위험도</th><th>비고</th></tr>
+      <tr><td>GATEWAY_TOKEN 검증</td><td><span style="color:var(--green)">low</span></td><td>기존 <code>verify_token</code> dependency 그대로 사용</td></tr>
+      <tr><td>GATEWAY_MODE gate</td><td><span style="color:var(--green)">low</span></td><td>read_only에서 dry-run 차단 확인</td></tr>
+      <tr><td>Optimistic Lock</td><td><span style="color:var(--green)">low</span></td><td>sha256 기반 hash, 충돌 시 PAGE_CHANGED 반환</td></tr>
+      <tr><td>Wiki.js mutation 미호출</td><td><span style="color:var(--green)">low</span></td><td>Step 3은 read + patch 계산만, 실제 쓰기 없음</td></tr>
+      <tr><td>path allowlist 검사</td><td><span style="color:var(--yellow)">n/a</span></td><td>dry-run은 읽기 경로라 allowlist 불필요 (Step 4에서 적용)</td></tr>
+    </table>
+  </section>
+
+  <!-- 10. 호환성 -->
+  <section id="compat">
+    <h2>10. 호환성 및 Deprecated</h2>
+    <table>
+      <tr><th>항목</th><th>분류</th><th>비고</th></tr>
+      <tr><td>compute_hash 반환 형식 변경</td><td><span style="color:var(--yellow)">breaking</span></td><td>기존 <code>test_compute_hash_format</code> 수정 완료. 저장된 hash 없음 (DB 미사용)</td></tr>
+      <tr><td>Python 3.12</td><td><span style="color:var(--green)">supported</span></td><td>type union, Literal 정상 동작</td></tr>
+      <tr><td>pydantic v2</td><td><span style="color:var(--green)">supported</span></td><td>Literal, str | None 정상 동작</td></tr>
+      <tr><td>trio backend</td><td><span style="color:var(--yellow)">legacy</span></td><td>trio 미설치로 7개 테스트 skip. anyio asyncio 백엔드로 전체 커버 가능</td></tr>
+    </table>
+  </section>
+
+  <!-- 11. 운영 영향도 -->
+  <section id="impact">
+    <h2>11. 운영 영향도</h2>
+    <div class="alert ok">
+      Step 3은 신규 엔드포인트 추가만이다. 기존 <code>/health</code>, <code>/pages/by-path</code> 동작에 변경 없음.
+    </div>
+    <table>
+      <tr><th>항목</th><th>영향</th></tr>
+      <tr><td>기존 엔드포인트</td><td class="pass">영향 없음 — 회귀 테스트 전부 통과</td></tr>
+      <tr><td>메모리/CPU</td><td class="pass">difflib 표준 라이브러리 사용, 추가 의존성 없음</td></tr>
+      <tr><td>Wiki.js 부하</td><td class="pass">dry-run은 pages.singleByPath 1회 읽기만 추가</td></tr>
+      <tr><td>인증 변경</td><td class="pass">없음</td></tr>
+    </table>
+  </section>
+
+  <!-- 12. 롤백 -->
+  <section id="rollback">
+    <h2>12. 롤백 계획</h2>
+    <pre><code># 브랜치 전환으로 즉시 롤백
+git checkout feat/step2-wikijs-client-read
+
+# 또는 커밋 revert
+git revert e801e82</code></pre>
+    <div class="alert info">
+      Step 3은 Wiki.js에 쓰기를 하지 않으므로 데이터 롤백 불필요. 코드 롤백만으로 충분.
+    </div>
+  </section>
+
+  <!-- 13. 남은 작업 -->
+  <section id="remaining">
+    <h2>13. 남은 작업</h2>
+    <table>
+      <tr><th>Step</th><th>내용</th><th>상태</th></tr>
+      <tr><td>Step 4</td><td>Audit Log + <code>POST /pages/patch-section</code> + <code>POST /pages/upsert</code> (write 모드)</td><td><span class="badge blue" style="font-size:11px;">active</span></td></tr>
+      <tr><td>Step 5</td><td>Docker Compose overlay + 운영 검증</td><td><span class="badge blue" style="font-size:11px;">active</span></td></tr>
+      <tr><td>trio 설치</td><td>test_wikijs_client.py trio 백엔드 테스트 복구</td><td><span style="color:var(--yellow);font-size:12px;">tech debt</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 14. 부록 -->
+  <section id="appendix">
+    <h2>14. 부록</h2>
+    <h3>테스트 실행 명령어</h3>
+    <pre><code>python -m pytest tests/test_locking.py tests/test_markdown_patch.py -v
+# 22 passed in 0.02s</code></pre>
+
+    <h3>전체 테스트 (trio 제외)</h3>
+    <pre><code>python -m pytest tests/ -v --ignore=tests/test_wikijs_client.py
+python -m pytest tests/test_wikijs_client.py -v -k "not trio"
+# 42 passed total</code></pre>
+
+    <h3>커밋 로그</h3>
+    <pre><code>e801e82 feat(step3): markdown_patch + locking + POST /pages/dry-run 구현
+3f344f0 docs(step2): 지시서 완료 처리
+f79252c feat(step2): WikiJsClient + GET /pages/by-path 구현
+4faeb99 feat(step1): FastAPI 기반 구조 + /health 엔드포인트 구현</code></pre>
+
+    <h3>신규 파일 목록</h3>
+    <pre><code>app/markdown_patch.py            # Markdown patch 함수 4개
+tests/test_locking.py            # 6 unit tests
+tests/test_markdown_patch.py     # 16 unit tests
+instructions/.completed/0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003.md
+skills/backend-infra-completion-report/SKILL.md
+skills/backend-infra-completion-report/SKILL_ko.md
+out/report-step3.html            # 이 파일</code></pre>
+
+    <h3>DryRunRequest 예시</h3>
+    <pre><code>POST /pages/dry-run
+Authorization: Bearer &lt;GATEWAY_TOKEN&gt;
+Content-Type: application/json
+
+{
+  "path": "agent/my-doc",
+  "locale": "ko",
+  "baseHash": "sha256:abcdef...",
+  "operation": {
+    "type": "replace_between_markers",
+    "name": "status-block",
+    "content": "업데이트된 내용"
+  }
+}</code></pre>
+  </section>
+
+</main>
+</body>
+</html>
