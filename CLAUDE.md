@@ -194,8 +194,8 @@ Gateway는 초기에 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service�
 | `0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001` | [step1-foundation.md](instructions/.completed/0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001.md) | completed |
 | `0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002` | [step2-wikijs-client-read.md](instructions/.completed/0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002.md) | completed |
 | `0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003` | [step3-markdown-patch-dryrun.md](instructions/.completed/0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003.md) | completed |
-| `0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004` | [step4-audit-write.md](instructions/step4-audit-write.md) | active |
-| `0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005` | [step5-docker-deploy.md](instructions/step5-docker-deploy.md) | active |
+| `0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004` | [step4-audit-write.md](instructions/.completed/0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004.md) | completed |
+| `0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005` | [step5-docker-deploy.md](instructions/.completed/0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005.md) | completed |
 
 
 ## 개발 규칙
