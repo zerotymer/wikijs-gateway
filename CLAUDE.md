@@ -45,7 +45,7 @@ Gateway는 reverse proxy가 아닌 **애플리케이션 레벨 안전 proxy**다
 
 ## 프로젝트 구조
 
-> **현재 상태**: 계획 단계. `app/`, `tests/`, `Dockerfile` 등은 아직 생성되지 않았다.
+> **현재 상태**: Step 1~5 구현 완료. 운영 배포 가능.
 
 ```
 wikijs-agent-gateway/
@@ -59,12 +59,18 @@ wikijs-agent-gateway/
     audit.py          # audit log 파일 기록
     models.py         # pydantic request/response 모델
   tests/
+    test_health.py
+    test_pages_by_path.py
+    test_routes_write.py
+    test_wikijs_client.py
     test_markdown_patch.py
     test_locking.py
+    test_audit.py
   Dockerfile
   requirements.txt
-  docker-compose.gateway.yml
-  .env.example        # 실제 .env는 커밋 금지
+  docker-compose.gateway.yml  # 독립 실행 (base compose 불필요)
+  .env.example                # 실제 .env는 커밋 금지
+  output/                     # 보고서, API 명세, SKILL 파일
 ```
 
 ---
@@ -143,23 +149,23 @@ baseHash = sha256(page.id + "\n" + page.updatedAt + "\n" + page.content)
 
 ---
 
-## 배포 (Docker Compose Overlay)
+## 배포 (독립 Docker Compose)
+
+Gateway는 별도 base `docker-compose.yml` 없이 **단독**으로 실행한다.
 
 ```bash
 # 빌드 및 시작
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.gateway.yml \
-  up -d --build wikijs-agent-gateway
+docker compose -f docker-compose.gateway.yml up -d --build
 
-# 롤백
-docker compose \
-  -f docker-compose.yml \
-  -f docker-compose.gateway.yml \
-  stop wikijs-agent-gateway
+# 상태 확인
+docker compose -f docker-compose.gateway.yml ps
+docker compose -f docker-compose.gateway.yml logs -f wikijs-agent-gateway
+
+# 롤백 (Wiki.js, PostgreSQL, Git storage 영향 없음)
+docker compose -f docker-compose.gateway.yml stop wikijs-agent-gateway
 ```
 
-Gateway는 초기에 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정하지 않는다.
+Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정하지 않는다.
 
 ---
 ## Instructions 워크플로우

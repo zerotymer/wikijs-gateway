@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wikijs-agent-gateway — API 명세서</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3248;
+    --accent: #6c8eff;
+    --accent2: #a78bfa;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --cyan: #22d3ee;
+    --text: #e2e8f0;
+    --muted: #7c8db0;
+    --code-bg: #141720;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  h1 span { color: var(--accent); }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 40px; }
+  h2 { font-size: 1.25rem; font-weight: 600; color: var(--accent2); margin: 48px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 1rem; font-weight: 600; color: #fff; margin: 24px 0 10px; }
+
+  /* Endpoint card */
+  .endpoint { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+  .endpoint-header { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--surface2); }
+  .method { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.5px; }
+  .method.get  { background: #1a3a52; color: var(--cyan); border: 1px solid #22d3ee44; }
+  .method.post { background: #1a3a1a; color: var(--green); border: 1px solid #4ade8044; }
+  .path { font-family: 'Courier New', monospace; font-size: 1rem; color: #fff; }
+  .badge { margin-left: auto; font-size: 0.72rem; padding: 2px 8px; border-radius: 20px; }
+  .badge.read-only { background: #1e2a3a; color: var(--cyan); }
+  .badge.dry-run   { background: #2a2a1a; color: var(--yellow); }
+  .badge.write     { background: #1a2a1a; color: var(--green); }
+  .endpoint-body { padding: 20px; }
+  .desc { color: var(--muted); margin-bottom: 16px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin: 12px 0; }
+  th { text-align: left; padding: 8px 12px; background: var(--surface2); color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  code { font-family: 'Courier New', monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
+
+  /* Code block */
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.85rem; line-height: 1.7; margin: 12px 0; }
+  pre .kw { color: var(--accent); }
+  pre .str { color: var(--green); }
+  pre .key { color: var(--accent2); }
+  pre .num { color: var(--yellow); }
+  pre .cmt { color: var(--muted); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: -1px; }
+  .tab { font-size: 0.8rem; padding: 6px 14px; background: var(--surface2); border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; color: var(--muted); }
+  .tab.active { background: var(--code-bg); color: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Error table */
+  .status { display: inline-block; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; }
+  .s200 { background: #1a3a1a; color: var(--green); }
+  .s403 { background: #3a2a1a; color: var(--yellow); }
+  .s404 { background: #3a1a1a; color: var(--red); }
+  .s409 { background: #3a2a3a; color: var(--accent2); }
+  .s422 { background: #3a1a3a; color: #e879f9; }
+  .s502 { background: #2a1a1a; color: var(--red); }
+
+  .required { color: var(--red); font-size: 0.75rem; }
+  .optional { color: var(--muted); font-size: 0.75rem; }
+  .type-tag { color: var(--cyan); font-size: 0.8rem; }
+
+  /* Auth note */
+  .auth-box { background: #1a1d35; border: 1px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin-bottom: 32px; font-size: 0.9rem; }
+  .auth-box strong { color: var(--accent); }
+
+  /* Mode table */
+  .mode-table td:first-child code { font-weight: 700; }
+
+  /* TOC */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 40px; }
+  .toc h3 { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+  .toc a { color: var(--accent); text-decoration: none; font-size: 0.875rem; }
+  .toc a:hover { text-decoration: underline; }
+  .toc li { margin: 4px 0; list-style: none; }
+  .toc ul { padding-left: 16px; }
+
+  hr.sep { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>wikijs-agent-<span>gateway</span></h1>
+  <p class="meta">API 명세서 v1.0 &nbsp;·&nbsp; 생성일: 2026-05-31 &nbsp;·&nbsp; 기준 브랜치: main</p>
+
+  <div class="toc">
+    <h3>목차</h3>
+    <ul>
+      <li><a href="#overview">개요 &amp; 인증</a></li>
+      <li><a href="#modes">Gateway 모드</a></li>
+      <li><a href="#health">GET /health</a></li>
+      <li><a href="#by-path">GET /pages/by-path</a></li>
+      <li><a href="#dry-run">POST /pages/dry-run</a></li>
+      <li><a href="#patch-section">POST /pages/patch-section</a></li>
+      <li><a href="#upsert">POST /pages/upsert</a></li>
+      <li><a href="#patch-ops">Patch Operation 타입</a></li>
+      <li><a href="#errors">공통 에러 코드</a></li>
+      <li><a href="#locking">Optimistic Locking</a></li>
+    </ul>
+  </div>
+
+  <!-- OVERVIEW -->
+  <h2 id="overview">개요 &amp; 인증</h2>
+  <p style="color:var(--muted); margin-bottom:16px;">
+    Wiki.js GraphQL API 앞에 위치하는 안전 제한 게이트웨이.<br>
+    모든 요청은 아래 헤더가 필요하다.
+  </p>
+  <div class="auth-box">
+    <strong>Authorization: Bearer &lt;GATEWAY_TOKEN&gt;</strong><br>
+    <span style="color:var(--muted)">헤더 누락 또는 토큰 불일치 시 <code>401 Unauthorized</code> 반환.</span>
+  </div>
+
+  <table>
+    <tr><th>항목</th><th>값</th></tr>
+    <tr><td>Base URL</td><td><code>http://127.0.0.1:8088</code></td></tr>
+    <tr><td>Content-Type (요청 body)</td><td><code>application/json</code></td></tr>
+    <tr><td>인증</td><td>Bearer token (<code>GATEWAY_TOKEN</code> 환경 변수)</td></tr>
+    <tr><td>기본 locale</td><td><code>DEFAULT_LOCALE</code> 환경 변수 (기본: <code>ko</code>)</td></tr>
+  </table>
+
+  <!-- MODES -->
+  <h2 id="modes">Gateway 모드</h2>
+  <table class="mode-table">
+    <tr><th>모드</th><th>ENV 값</th><th>허용</th><th>차단</th><th>기본</th></tr>
+    <tr>
+      <td><code>read_only</code></td><td><code>GATEWAY_MODE=read_only</code></td>
+      <td>health, page 조회</td><td>dry-run, 쓰기</td><td></td>
+    </tr>
+    <tr>
+      <td><code>dry_run</code></td><td><code>GATEWAY_MODE=dry_run</code></td>
+      <td>read + patch 계산 + diff 반환</td><td>실제 Wiki.js mutation</td><td>✅</td>
+    </tr>
+    <tr>
+      <td><code>write</code></td><td><code>GATEWAY_MODE=write</code></td>
+      <td>ALLOW_PATH_PREFIXES 내 create/update</td><td>allowlist 외 경로 쓰기</td><td></td>
+    </tr>
+  </table>
+
+  <hr class="sep">
+
+  <!-- GET /health -->
+  <h2 id="health">엔드포인트</h2>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/health</span>
+      <span class="badge read-only">read_only 이상</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">서비스 상태 및 Wiki.js 연결 가능 여부를 반환한다.</p>
+
+      <h3>응답 (200 OK)</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>ok</code></td><td class="type-tag">boolean</td><td>항상 <code>true</code></td></tr>
+        <tr><td><code>mode</code></td><td class="type-tag">string</td><td>현재 Gateway 모드 (<code>read_only</code> | <code>dry_run</code> | <code>write</code>)</td></tr>
+        <tr><td><code>wikijsReachable</code></td><td class="type-tag">boolean</td><td>Wiki.js GraphQL endpoint 응답 여부</td></tr>
+      </table>
+
+      <h3>예시</h3>
+      <pre><span class="cmt"># Request</span>
+curl -H <span class="str">"Authorization: Bearer $GATEWAY_TOKEN"</span> \
+     http://127.0.0.1:8088/health
+
+<span class="cmt"># Response</span>
+{
+  <span class="key">"ok"</span>: <span class="kw">true</span>,
+  <span class="key">"mode"</span>: <span class="str">"dry_run"</span>,
+  <span class="key">"wikijsReachable"</span>: <span class="kw">true</span>
+}</pre>
+    </div>
+  </div>
+
+  <!-- GET /pages/by-path -->
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="method get">GET</span>
+      <span class="path">/pages/by-path</span>
+      <span class="badge read-only">read_only 이상</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">Wiki.js 페이지를 path + locale로 조회한다. 응답에 <code>contentHash</code>가 포함되어 optimistic locking에 사용된다.</p>
+
+      <h3>Query Parameters</h3>
+      <table>
+        <tr><th>파라미터</th><th>필수</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>path</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>Wiki.js 페이지 경로 (예: <code>/agent/test</code>)</td></tr>
+        <tr><td><code>locale</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td>locale 코드. 생략 시 <code>DEFAULT_LOCALE</code> 사용</td></tr>
+      </table>
+
+      <h3>응답 (200 OK) — PageResponse</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>id</code></td><td class="type-tag">integer</td><td>Wiki.js 내부 페이지 ID</td></tr>
+        <tr><td><code>path</code></td><td class="type-tag">string</td><td>페이지 경로 (leading slash 없음)</td></tr>
+        <tr><td><code>locale</code></td><td class="type-tag">string</td><td>페이지 locale</td></tr>
+        <tr><td><code>title</code></td><td class="type-tag">string</td><td>페이지 제목</td></tr>
+        <tr><td><code>description</code></td><td class="type-tag">string</td><td>페이지 설명</td></tr>
+        <tr><td><code>content</code></td><td class="type-tag">string</td><td>Markdown 본문</td></tr>
+        <tr><td><code>editor</code></td><td class="type-tag">string</td><td>편집기 타입 (예: <code>markdown</code>)</td></tr>
+        <tr><td><code>isPublished</code></td><td class="type-tag">boolean</td><td>공개 여부</td></tr>
+        <tr><td><code>isPrivate</code></td><td class="type-tag">boolean</td><td>비공개 여부</td></tr>
+        <tr><td><code>updatedAt</code></td><td class="type-tag">string</td><td>ISO8601 최종 수정 시각</td></tr>
+        <tr><td><code>contentHash</code></td><td class="type-tag">string</td><td>sha256(id + updatedAt + content) — locking용 baseHash</td></tr>
+        <tr><td><code>tags</code></td><td class="type-tag">string[]</td><td>태그 목록</td></tr>
+        <tr><td><code>scriptCss</code></td><td class="type-tag">string | null</td><td>커스텀 CSS</td></tr>
+        <tr><td><code>scriptJs</code></td><td class="type-tag">string | null</td><td>커스텀 JS</td></tr>
+      </table>
+
+      <h3>예시</h3>
+      <pre>curl -H <span class="str">"Authorization: Bearer $GATEWAY_TOKEN"</span> \
+     <span class="str">"http://127.0.0.1:8088/pages/by-path?path=/agent/test&locale=ko"</span>
+
+{
+  <span class="key">"id"</span>: <span class="num">42</span>,
+  <span class="key">"path"</span>: <span class="str">"agent/test"</span>,
+  <span class="key">"locale"</span>: <span class="str">"ko"</span>,
+  <span class="key">"title"</span>: <span class="str">"테스트 페이지"</span>,
+  <span class="key">"description"</span>: <span class="str">""</span>,
+  <span class="key">"content"</span>: <span class="str">"# 테스트\n\n내용..."</span>,
+  <span class="key">"editor"</span>: <span class="str">"markdown"</span>,
+  <span class="key">"isPublished"</span>: <span class="kw">true</span>,
+  <span class="key">"isPrivate"</span>: <span class="kw">false</span>,
+  <span class="key">"updatedAt"</span>: <span class="str">"2026-05-31T12:00:00.000Z"</span>,
+  <span class="key">"contentHash"</span>: <span class="str">"a3f8c2..."</span>,
+  <span class="key">"tags"</span>: []
+}</pre>
+
+      <h3>에러</h3>
+      <table>
+        <tr><th>상태</th><th>error 코드</th><th>설명</th></tr>
+        <tr><td><span class="status s404">404</span></td><td><code>PAGE_NOT_FOUND</code></td><td>path에 해당하는 페이지 없음</td></tr>
+        <tr><td><span class="status s502">502</span></td><td><code>WIKIJS_ERROR</code></td><td>Wiki.js GraphQL 에러 응답</td></tr>
+        <tr><td><span class="status s502">502</span></td><td><code>WIKIJS_UNREACHABLE</code></td><td>Wiki.js 네트워크 연결 불가</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- POST /pages/dry-run -->
+  <div class="endpoint" id="dry-run">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/pages/dry-run</span>
+      <span class="badge dry-run">dry_run 이상</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">실제 Wiki.js에 쓰지 않고 patch 결과와 diff만 반환한다. optimistic lock 검증을 수행한다.</p>
+
+      <h3>Request Body</h3>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>path</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>대상 페이지 경로</td></tr>
+        <tr><td><code>locale</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td>locale (기본: DEFAULT_LOCALE)</td></tr>
+        <tr><td><code>baseHash</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td><code>contentHash</code> 값 (by-path 응답에서 취득)</td></tr>
+        <tr><td><code>operation</code></td><td><span class="required">필수</span></td><td class="type-tag">PatchOperation</td><td>patch 작업 명세 (아래 참고)</td></tr>
+      </table>
+
+      <h3>응답 (200 OK) — DryRunResponse</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>ok</code></td><td class="type-tag">boolean</td><td>true</td></tr>
+        <tr><td><code>mode</code></td><td class="type-tag">string</td><td>현재 Gateway 모드</td></tr>
+        <tr><td><code>changed</code></td><td class="type-tag">boolean</td><td>내용 변경 여부</td></tr>
+        <tr><td><code>diff</code></td><td class="type-tag">string</td><td>unified diff (변경 없으면 빈 문자열)</td></tr>
+        <tr><td><code>newHash</code></td><td class="type-tag">string</td><td>patch 적용 후 예상 hash</td></tr>
+      </table>
+
+      <h3>예시</h3>
+      <pre>curl -X POST http://127.0.0.1:8088/pages/dry-run \
+  -H <span class="str">"Authorization: Bearer $GATEWAY_TOKEN"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d '{
+    <span class="key">"path"</span>: <span class="str">"/agent/test"</span>,
+    <span class="key">"baseHash"</span>: <span class="str">"a3f8c2..."</span>,
+    <span class="key">"operation"</span>: {
+      <span class="key">"type"</span>: <span class="str">"replace_between_markers"</span>,
+      <span class="key">"name"</span>: <span class="str">"status"</span>,
+      <span class="key">"content"</span>: <span class="str">"배포 완료"</span>
+    }
+  }'</pre>
+
+      <h3>에러</h3>
+      <table>
+        <tr><th>상태</th><th>error 코드</th><th>설명</th></tr>
+        <tr><td><span class="status s403">403</span></td><td><code>MODE_NOT_ALLOWED</code></td><td>read_only 모드에서 호출</td></tr>
+        <tr><td><span class="status s403">200*</span></td><td><code>PAGE_CHANGED</code></td><td>baseHash 불일치 (응답 body에 currentHash 포함)</td></tr>
+        <tr><td><span class="status s422">422</span></td><td><code>PATCH_ERROR</code></td><td>heading/marker 찾기 실패</td></tr>
+        <tr><td><span class="status s422">422</span></td><td><code>MISSING_FIELD</code></td><td>operation 필수 필드 누락</td></tr>
+        <tr><td><span class="status s404">404</span></td><td><code>PAGE_NOT_FOUND</code></td><td>페이지 없음</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.8rem;margin-top:6px;">* PAGE_CHANGED는 HTTP 200으로 반환되며 ok:false, error:"PAGE_CHANGED"로 식별한다.</p>
+    </div>
+  </div>
+
+  <!-- POST /pages/patch-section -->
+  <div class="endpoint" id="patch-section">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/pages/patch-section</span>
+      <span class="badge write">write 모드에서 실제 반영</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">
+        Section 단위로 patch를 적용한다.<br>
+        <strong>dry_run 모드</strong>: diff 계산만 하고 Wiki.js에 쓰지 않는다.<br>
+        <strong>write 모드</strong>: allowlist 경로 확인 후 Wiki.js에 실제 반영하며 audit log를 남긴다.
+      </p>
+
+      <h3>Request Body</h3>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>path</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>대상 페이지 경로</td></tr>
+        <tr><td><code>locale</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td>locale</td></tr>
+        <tr><td><code>baseHash</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>optimistic lock용 hash</td></tr>
+        <tr><td><code>operation</code></td><td><span class="required">필수</span></td><td class="type-tag">PatchOperation</td><td>patch 작업</td></tr>
+      </table>
+
+      <h3>응답 (200 OK) — PatchSectionResponse</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>ok</code></td><td class="type-tag">boolean</td><td>true</td></tr>
+        <tr><td><code>mode</code></td><td class="type-tag">string</td><td>현재 Gateway 모드</td></tr>
+        <tr><td><code>changed</code></td><td class="type-tag">boolean</td><td>내용 변경 여부</td></tr>
+        <tr><td><code>diff</code></td><td class="type-tag">string</td><td>unified diff</td></tr>
+        <tr><td><code>newHash</code></td><td class="type-tag">string</td><td>적용 후 hash</td></tr>
+        <tr><td><code>pageId</code></td><td class="type-tag">integer</td><td>Wiki.js 페이지 ID</td></tr>
+      </table>
+
+      <h3>에러</h3>
+      <table>
+        <tr><th>상태</th><th>error 코드</th><th>설명</th></tr>
+        <tr><td><span class="status s403">403</span></td><td><code>MODE_NOT_ALLOWED</code></td><td>read_only 모드</td></tr>
+        <tr><td><span class="status s403">403</span></td><td><code>PATH_NOT_ALLOWED</code></td><td>write 모드에서 allowlist 외 경로</td></tr>
+        <tr><td><span class="status s403">200*</span></td><td><code>PAGE_CHANGED</code></td><td>baseHash 불일치</td></tr>
+        <tr><td><span class="status s422">422</span></td><td><code>PATCH_ERROR</code></td><td>heading/marker 찾기 실패</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- POST /pages/upsert -->
+  <div class="endpoint" id="upsert">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/pages/upsert</span>
+      <span class="badge write">write 모드 전용</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">페이지를 생성하거나 갱신한다. 경로가 존재하면 update, 없으면 create. allowlist 경로만 허용. audit log 기록.</p>
+
+      <h3>Request Body</h3>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>타입</th><th>기본값</th><th>설명</th></tr>
+        <tr><td><code>path</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>—</td><td>페이지 경로</td></tr>
+        <tr><td><code>locale</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td>DEFAULT_LOCALE</td><td>locale</td></tr>
+        <tr><td><code>title</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>—</td><td>페이지 제목</td></tr>
+        <tr><td><code>description</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td><code>""</code></td><td>페이지 설명</td></tr>
+        <tr><td><code>content</code></td><td><span class="required">필수</span></td><td class="type-tag">string</td><td>—</td><td>Markdown 본문</td></tr>
+        <tr><td><code>editor</code></td><td><span class="optional">선택</span></td><td class="type-tag">string</td><td><code>"markdown"</code></td><td>편집기 타입</td></tr>
+        <tr><td><code>isPublished</code></td><td><span class="optional">선택</span></td><td class="type-tag">boolean</td><td><code>true</code></td><td>공개 여부</td></tr>
+        <tr><td><code>isPrivate</code></td><td><span class="optional">선택</span></td><td class="type-tag">boolean</td><td><code>false</code></td><td>비공개 여부</td></tr>
+        <tr><td><code>tags</code></td><td><span class="optional">선택</span></td><td class="type-tag">string[]</td><td><code>[]</code></td><td>태그 목록</td></tr>
+      </table>
+
+      <h3>응답 (200 OK) — UpsertResponse</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>ok</code></td><td class="type-tag">boolean</td><td>true</td></tr>
+        <tr><td><code>created</code></td><td class="type-tag">boolean</td><td>true=신규 생성, false=기존 페이지 업데이트</td></tr>
+        <tr><td><code>pageId</code></td><td class="type-tag">integer</td><td>Wiki.js 페이지 ID</td></tr>
+        <tr><td><code>path</code></td><td class="type-tag">string</td><td>실제 저장된 경로</td></tr>
+      </table>
+
+      <h3>예시</h3>
+      <pre>curl -X POST http://127.0.0.1:8088/pages/upsert \
+  -H <span class="str">"Authorization: Bearer $GATEWAY_TOKEN"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d '{
+    <span class="key">"path"</span>: <span class="str">"/agent/deploy-log"</span>,
+    <span class="key">"title"</span>: <span class="str">"배포 로그"</span>,
+    <span class="key">"content"</span>: <span class="str">"# 배포 로그\n\n2026-05-31 배포 완료"</span>,
+    <span class="key">"tags"</span>: [<span class="str">"agent"</span>, <span class="str">"deploy"</span>]
+  }'
+
+{
+  <span class="key">"ok"</span>: <span class="kw">true</span>,
+  <span class="key">"created"</span>: <span class="kw">true</span>,
+  <span class="key">"pageId"</span>: <span class="num">55</span>,
+  <span class="key">"path"</span>: <span class="str">"agent/deploy-log"</span>
+}</pre>
+
+      <h3>에러</h3>
+      <table>
+        <tr><th>상태</th><th>error 코드</th><th>설명</th></tr>
+        <tr><td><span class="status s403">403</span></td><td><code>MODE_NOT_ALLOWED</code></td><td>write 모드가 아님</td></tr>
+        <tr><td><span class="status s403">403</span></td><td><code>PATH_NOT_ALLOWED</code></td><td>allowlist 외 경로</td></tr>
+        <tr><td><span class="status s502">502</span></td><td><code>WIKIJS_ERROR</code></td><td>Wiki.js 응답 에러</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- PATCH OPERATIONS -->
+  <h2 id="patch-ops">Patch Operation 타입</h2>
+  <p style="color:var(--muted);margin-bottom:16px;"><code>dry-run</code>과 <code>patch-section</code> 요청의 <code>operation</code> 필드에 사용한다.</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="path">replace_between_markers</span>
+      <span class="badge read-only" style="margin-left:auto">권장 — 반복 업데이트에 안전</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">
+        <code>&lt;!-- agent:start {name} --&gt;</code> … <code>&lt;!-- agent:end {name} --&gt;</code> 사이 내용을 교체한다.<br>
+        마커가 없으면 422 PATCH_ERROR.
+      </p>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>설명</th></tr>
+        <tr><td><code>type</code></td><td><span class="required">필수</span></td><td><code>"replace_between_markers"</code></td></tr>
+        <tr><td><code>name</code></td><td><span class="required">필수</span></td><td>마커 이름 (예: <code>"status"</code>)</td></tr>
+        <tr><td><code>content</code></td><td><span class="required">필수</span></td><td>교체할 새 내용</td></tr>
+      </table>
+      <pre><span class="cmt"># Markdown 내 마커 형식</span>
+&lt;!-- agent:start status --&gt;
+기존 내용이 여기에 있음
+&lt;!-- agent:end status --&gt;</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="path">append_under_heading</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">지정한 heading 아래에 내용을 추가한다. heading 정확 일치 필요.</p>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>설명</th></tr>
+        <tr><td><code>type</code></td><td><span class="required">필수</span></td><td><code>"append_under_heading"</code></td></tr>
+        <tr><td><code>heading</code></td><td><span class="required">필수</span></td><td>heading 텍스트 (예: <code>"## 변경 이력"</code>)</td></tr>
+        <tr><td><code>content</code></td><td><span class="required">필수</span></td><td>추가할 내용</td></tr>
+        <tr><td><code>create_heading</code></td><td><span class="optional">선택</span></td><td><code>false</code> (기본) — heading 없으면 에러 / <code>true</code>면 자동 생성</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header">
+      <span class="path">replace_section</span>
+    </div>
+    <div class="endpoint-body">
+      <p class="desc">heading 전체 section(다음 같은-수준 heading 직전까지)을 교체한다. 통제된 문서에서만 사용 권장.</p>
+      <table>
+        <tr><th>필드</th><th>필수</th><th>설명</th></tr>
+        <tr><td><code>type</code></td><td><span class="required">필수</span></td><td><code>"replace_section"</code></td></tr>
+        <tr><td><code>heading</code></td><td><span class="required">필수</span></td><td>대상 heading 텍스트</td></tr>
+        <tr><td><code>content</code></td><td><span class="required">필수</span></td><td>새 section 내용 (heading 포함)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- ERRORS -->
+  <h2 id="errors">공통 에러 코드</h2>
+  <table>
+    <tr><th>HTTP</th><th>error 코드</th><th>설명</th><th>대응</th></tr>
+    <tr><td><span class="status s403">401</span></td><td><code>—</code></td><td>Authorization 헤더 누락 또는 토큰 불일치</td><td>GATEWAY_TOKEN 확인</td></tr>
+    <tr><td><span class="status s403">403</span></td><td><code>MODE_NOT_ALLOWED</code></td><td>현재 모드에서 허용하지 않는 작업</td><td>GATEWAY_MODE 환경 변수 변경</td></tr>
+    <tr><td><span class="status s403">403</span></td><td><code>PATH_NOT_ALLOWED</code></td><td>ALLOW_PATH_PREFIXES 외 경로 쓰기</td><td>경로 또는 allowlist 수정</td></tr>
+    <tr><td><span class="status s404">404</span></td><td><code>PAGE_NOT_FOUND</code></td><td>path에 해당하는 페이지 없음</td><td>경로 확인, upsert로 생성</td></tr>
+    <tr><td>200</td><td><code>PAGE_CHANGED</code></td><td>baseHash 불일치 (낙관적 잠금 실패)</td><td><code>currentHash</code>로 재조회 후 재시도</td></tr>
+    <tr><td><span class="status s422">422</span></td><td><code>PATCH_ERROR</code></td><td>heading/marker 찾기 실패</td><td>대상 문서 마커 확인</td></tr>
+    <tr><td><span class="status s422">422</span></td><td><code>MISSING_FIELD</code></td><td>operation 필수 필드 누락</td><td>요청 body 확인</td></tr>
+    <tr><td><span class="status s502">502</span></td><td><code>WIKIJS_ERROR</code></td><td>Wiki.js GraphQL 에러 응답</td><td>details 필드 확인</td></tr>
+    <tr><td><span class="status s502">502</span></td><td><code>WIKIJS_UNREACHABLE</code></td><td>Wiki.js 네트워크 연결 불가</td><td>WIKIJS_GRAPHQL_URL 및 네트워크 확인</td></tr>
+  </table>
+
+  <!-- LOCKING -->
+  <h2 id="locking">Optimistic Locking</h2>
+  <p style="color:var(--muted);margin-bottom:12px;">동시 수정 충돌을 방지하기 위해 hash 기반 낙관적 잠금을 사용한다.</p>
+  <table>
+    <tr><th>단계</th><th>설명</th></tr>
+    <tr><td>1. 조회</td><td><code>GET /pages/by-path</code>로 페이지를 가져오면 <code>contentHash</code>가 포함된다</td></tr>
+    <tr><td>2. 저장</td><td>응답의 <code>contentHash</code>를 <code>baseHash</code>로 사용하여 patch 요청</td></tr>
+    <tr><td>3. 검증</td><td>Gateway가 현재 페이지 hash와 <code>baseHash</code>를 비교</td></tr>
+    <tr><td>4. 충돌</td><td>불일치 시 <code>PAGE_CHANGED</code> + <code>currentHash</code> 반환 → 재조회 후 재시도</td></tr>
+  </table>
+  <pre><span class="cmt"># hash 계산식</span>
+baseHash = sha256(<span class="str">f"{page.id}\n{page.updatedAt}\n{page.content}"</span>)</pre>
+
+  <hr class="sep">
+  <p style="color:var(--muted);font-size:0.8rem;text-align:center;">wikijs-agent-gateway &nbsp;·&nbsp; 생성: 2026-05-31 &nbsp;·&nbsp; 소스: <code>app/main.py</code>, <code>app/models.py</code>, <code>app/wikijs_client.py</code></p>
+</div>
+</body>
+</html>

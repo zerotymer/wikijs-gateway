@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wikijs-agent-gateway — GraphQL 도메인 명세</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3248;
+    --accent: #6c8eff;
+    --accent2: #a78bfa;
+    --green: #4ade80;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --cyan: #22d3ee;
+    --text: #e2e8f0;
+    --muted: #7c8db0;
+    --code-bg: #141720;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.6; }
+  .page { max-width: 1000px; margin: 0 auto; padding: 48px 24px; }
+  h1 { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  h1 span { color: var(--cyan); }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 40px; }
+  h2 { font-size: 1.2rem; font-weight: 600; color: var(--accent2); margin: 48px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  h3 { font-size: 0.95rem; font-weight: 600; color: #fff; margin: 20px 0 10px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 28px; overflow: hidden; }
+  .card-header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: var(--surface2); }
+  .op-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .query    { background: #1a3a52; color: var(--cyan);   border: 1px solid #22d3ee44; }
+  .mutation { background: #3a1a52; color: var(--accent2); border: 1px solid #a78bfa44; }
+  .card-title { font-family: 'Courier New', monospace; font-size: 1rem; color: #fff; }
+  .card-sub { margin-left: auto; font-size: 0.8rem; color: var(--muted); }
+  .card-body { padding: 20px; }
+
+  .used-by { font-size: 0.8rem; color: var(--muted); margin-bottom: 14px; }
+  .used-by span { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 8px; margin-right: 6px; color: var(--text); font-family: monospace; }
+
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.75; margin: 10px 0; }
+  .kw { color: #ff7b72; }   /* keyword */
+  .type { color: var(--cyan); }
+  .field { color: var(--accent2); }
+  .str { color: var(--green); }
+  .cmt { color: var(--muted); }
+  .var { color: var(--yellow); }
+  code { font-family: 'Courier New', monospace; background: var(--code-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.875rem; margin: 10px 0; }
+  th { text-align: left; padding: 7px 12px; background: var(--surface2); color: var(--muted); font-weight: 600; font-size: 0.73rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+
+  .section-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; margin-top: 16px; }
+
+  .arch-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 32px; font-family: monospace; font-size: 0.9rem; line-height: 2; }
+  .arch-box .endpoint { color: var(--cyan); }
+  .arch-box .arrow { color: var(--muted); }
+  .arch-box .graphql { color: var(--accent2); }
+
+  .perm-box { background: #1a1d35; border: 1px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 20px 0; }
+  .perm-box h3 { color: var(--accent); margin-bottom: 10px; font-size: 0.9rem; }
+
+  hr.sep { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>wikijs-agent-gateway<br><span>GraphQL 도메인 명세</span></h1>
+  <p class="meta">Gateway가 Wiki.js GraphQL API에 보내는 모든 쿼리/뮤테이션 목록 &nbsp;·&nbsp; 2026-05-31</p>
+
+  <!-- Architecture -->
+  <div class="arch-box">
+    <div><span class="endpoint">wikijs-agent-gateway</span></div>
+    <div><span class="arrow">  │  Authorization: Bearer WIKIJS_API_TOKEN</span></div>
+    <div><span class="arrow">  ▼  POST WIKIJS_GRAPHQL_URL</span></div>
+    <div><span class="graphql">Wiki.js /graphql</span> <span class="arrow">→ PostgreSQL → Git storage</span></div>
+  </div>
+
+  <div class="perm-box">
+    <h3>Wiki.js API Token 최소 권한</h3>
+    <table>
+      <tr><th>권한</th><th>용도</th></tr>
+      <tr><td><code>read:pages</code></td><td>GetPageByPath 쿼리, Ping 쿼리</td></tr>
+      <tr><td><code>read:source</code></td><td>content 필드 접근</td></tr>
+      <tr><td><code>write:pages</code></td><td>UpdatePage, CreatePage 뮤테이션</td></tr>
+    </table>
+    <p style="color:var(--muted);font-size:0.8rem;margin-top:10px;"><code>manage:system</code>, <code>delete:pages</code>, <code>manage:users</code>는 부여하지 않는다.</p>
+  </div>
+
+  <!-- QUERIES -->
+  <h2>Queries</h2>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="op-badge query">Query</span>
+      <span class="card-title">GetPageByPath</span>
+      <span class="card-sub">pages.singleByPath</span>
+    </div>
+    <div class="card-body">
+      <p class="used-by">사용 위치: <span>GET /pages/by-path</span> <span>POST /pages/dry-run</span> <span>POST /pages/patch-section</span> <span>POST /pages/upsert (내부)</span></p>
+
+      <div class="section-label">GraphQL 쿼리</div>
+      <pre><span class="kw">query</span> <span class="type">GetPageByPath</span>(<span class="var">$path</span>: <span class="type">String!</span>, <span class="var">$locale</span>: <span class="type">String!</span>) {
+  <span class="field">pages</span> {
+    <span class="field">singleByPath</span>(<span class="field">path</span>: <span class="var">$path</span>, <span class="field">locale</span>: <span class="var">$locale</span>) {
+      <span class="field">id</span>
+      <span class="field">path</span>
+      <span class="field">title</span>
+      <span class="field">description</span>
+      <span class="field">content</span>
+      <span class="field">editor</span>
+      <span class="field">locale</span>
+      <span class="field">isPublished</span>
+      <span class="field">isPrivate</span>
+      <span class="field">updatedAt</span>
+      <span class="field">scriptCss</span>
+      <span class="field">scriptJs</span>
+      <span class="field">tags</span> { <span class="field">tag</span> }
+    }
+  }
+}</pre>
+
+      <div class="section-label">변수</div>
+      <table>
+        <tr><th>변수</th><th>타입</th><th>설명</th></tr>
+        <tr><td><code>$path</code></td><td><code>String!</code></td><td>Wiki.js 경로 (leading slash 제거 후 전달)</td></tr>
+        <tr><td><code>$locale</code></td><td><code>String!</code></td><td>locale 코드 (예: <code>ko</code>)</td></tr>
+      </table>
+
+      <div class="section-label">특이사항</div>
+      <p style="color:var(--muted);font-size:0.875rem;">
+        페이지 미존재 시 Wiki.js가 <code>null</code> 대신 GraphQL error code <code>6003</code>(PageNotFound)을 반환한다.<br>
+        Gateway는 이 경우를 404로 변환하고, 그 외 에러는 502로 변환한다.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="op-badge query">Query</span>
+      <span class="card-title">Ping</span>
+      <span class="card-sub">pages.list (limit:1)</span>
+    </div>
+    <div class="card-body">
+      <p class="used-by">사용 위치: <span>GET /health</span> (wikijsReachable 판단)</p>
+
+      <div class="section-label">GraphQL 쿼리</div>
+      <pre>{ <span class="field">pages</span> { <span class="field">list</span>(<span class="field">limit</span>: <span class="var">1</span>) { <span class="field">id</span> } } }</pre>
+
+      <div class="section-label">특이사항</div>
+      <p style="color:var(--muted);font-size:0.875rem;">
+        응답에 <code>errors</code> 필드가 없으면 <code>wikijsReachable: true</code> 반환.<br>
+        네트워크 예외나 HTTP 에러 발생 시에도 <code>false</code>만 반환하고 예외를 전파하지 않는다.
+      </p>
+    </div>
+  </div>
+
+  <!-- MUTATIONS -->
+  <h2>Mutations</h2>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="op-badge mutation">Mutation</span>
+      <span class="card-title">UpdatePage</span>
+      <span class="card-sub">pages.update</span>
+    </div>
+    <div class="card-body">
+      <p class="used-by">사용 위치: <span>POST /pages/patch-section (write 모드)</span> <span>POST /pages/upsert (기존 페이지 갱신)</span></p>
+
+      <div class="section-label">GraphQL 뮤테이션</div>
+      <pre><span class="kw">mutation</span> <span class="type">UpdatePage</span>(
+  <span class="var">$id</span>:          <span class="type">Int!</span>
+  <span class="var">$content</span>:     <span class="type">String!</span>
+  <span class="var">$title</span>:       <span class="type">String</span>
+  <span class="var">$description</span>: <span class="type">String</span>
+  <span class="var">$editor</span>:      <span class="type">String</span>
+  <span class="var">$locale</span>:      <span class="type">String</span>
+  <span class="var">$isPublished</span>: <span class="type">Boolean</span>
+  <span class="var">$isPrivate</span>:   <span class="type">Boolean</span>
+  <span class="var">$tags</span>:        [<span class="type">String</span>]
+  <span class="var">$scriptCss</span>:   <span class="type">String</span>
+  <span class="var">$scriptJs</span>:    <span class="type">String</span>
+) {
+  <span class="field">pages</span> {
+    <span class="field">update</span>(
+      <span class="field">id</span>: <span class="var">$id</span>
+      <span class="field">content</span>: <span class="var">$content</span>
+      <span class="field">title</span>: <span class="var">$title</span>
+      <span class="field">description</span>: <span class="var">$description</span>
+      <span class="field">editor</span>: <span class="var">$editor</span>
+      <span class="field">locale</span>: <span class="var">$locale</span>
+      <span class="field">isPublished</span>: <span class="var">$isPublished</span>
+      <span class="field">isPrivate</span>: <span class="var">$isPrivate</span>
+      <span class="field">tags</span>: <span class="var">$tags</span>
+      <span class="field">scriptCss</span>: <span class="var">$scriptCss</span>
+      <span class="field">scriptJs</span>: <span class="var">$scriptJs</span>
+    ) {
+      <span class="field">responseResult</span> { <span class="field">succeeded</span> <span class="field">errorCode</span> <span class="field">message</span> }
+      <span class="field">page</span> { <span class="field">id</span> <span class="field">path</span> <span class="field">title</span> <span class="field">updatedAt</span> }
+    }
+  }
+}</pre>
+
+      <div class="section-label">에러 처리</div>
+      <p style="color:var(--muted);font-size:0.875rem;">
+        <code>responseResult.succeeded == false</code>인 경우 Gateway는 <code>WikiJsError</code>로 변환 후 502 반환.<br>
+        <code>patch-section</code>에서는 write 모드 + allowlist 통과 후에만 호출된다.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="op-badge mutation">Mutation</span>
+      <span class="card-title">CreatePage</span>
+      <span class="card-sub">pages.create</span>
+    </div>
+    <div class="card-body">
+      <p class="used-by">사용 위치: <span>POST /pages/upsert (신규 페이지 생성)</span></p>
+
+      <div class="section-label">GraphQL 뮤테이션</div>
+      <pre><span class="kw">mutation</span> <span class="type">CreatePage</span>(
+  <span class="var">$content</span>:     <span class="type">String!</span>
+  <span class="var">$description</span>: <span class="type">String!</span>
+  <span class="var">$editor</span>:      <span class="type">String!</span>
+  <span class="var">$isPublished</span>: <span class="type">Boolean!</span>
+  <span class="var">$isPrivate</span>:   <span class="type">Boolean!</span>
+  <span class="var">$locale</span>:      <span class="type">String!</span>
+  <span class="var">$path</span>:        <span class="type">String!</span>
+  <span class="var">$tags</span>:        [<span class="type">String</span>]!
+  <span class="var">$title</span>:       <span class="type">String!</span>
+) {
+  <span class="field">pages</span> {
+    <span class="field">create</span>(
+      <span class="field">content</span>: <span class="var">$content</span>
+      <span class="field">description</span>: <span class="var">$description</span>
+      <span class="field">editor</span>: <span class="var">$editor</span>
+      <span class="field">isPublished</span>: <span class="var">$isPublished</span>
+      <span class="field">isPrivate</span>: <span class="var">$isPrivate</span>
+      <span class="field">locale</span>: <span class="var">$locale</span>
+      <span class="field">path</span>: <span class="var">$path</span>
+      <span class="field">tags</span>: <span class="var">$tags</span>
+      <span class="field">title</span>: <span class="var">$title</span>
+    ) {
+      <span class="field">responseResult</span> { <span class="field">succeeded</span> <span class="field">errorCode</span> <span class="field">message</span> }
+      <span class="field">page</span> { <span class="field">id</span> <span class="field">path</span> <span class="field">title</span> <span class="field">updatedAt</span> }
+    }
+  }
+}</pre>
+
+      <div class="section-label">특이사항</div>
+      <p style="color:var(--muted);font-size:0.875rem;">
+        <code>upsert_page</code>는 먼저 <code>GetPageByPath</code>로 존재 여부를 확인 후,<br>
+        존재하면 <code>UpdatePage</code>, 없으면 <code>CreatePage</code>를 호출한다.
+      </p>
+    </div>
+  </div>
+
+  <!-- SUMMARY TABLE -->
+  <h2>전체 요약</h2>
+  <table>
+    <tr><th>종류</th><th>이름</th><th>Wiki.js 필드</th><th>호출 위치</th><th>필요 권한</th></tr>
+    <tr>
+      <td><span class="op-badge query" style="font-size:0.65rem;padding:2px 6px;">Query</span></td>
+      <td><code>GetPageByPath</code></td>
+      <td><code>pages.singleByPath</code></td>
+      <td>by-path, dry-run, patch-section, upsert(내부)</td>
+      <td><code>read:pages</code>, <code>read:source</code></td>
+    </tr>
+    <tr>
+      <td><span class="op-badge query" style="font-size:0.65rem;padding:2px 6px;">Query</span></td>
+      <td><code>Ping</code></td>
+      <td><code>pages.list</code></td>
+      <td>health</td>
+      <td><code>read:pages</code></td>
+    </tr>
+    <tr>
+      <td><span class="op-badge mutation" style="font-size:0.65rem;padding:2px 6px;">Mutation</span></td>
+      <td><code>UpdatePage</code></td>
+      <td><code>pages.update</code></td>
+      <td>patch-section (write), upsert (기존)</td>
+      <td><code>write:pages</code></td>
+    </tr>
+    <tr>
+      <td><span class="op-badge mutation" style="font-size:0.65rem;padding:2px 6px;">Mutation</span></td>
+      <td><code>CreatePage</code></td>
+      <td><code>pages.create</code></td>
+      <td>upsert (신규)</td>
+      <td><code>write:pages</code></td>
+    </tr>
+  </table>
+
+  <hr class="sep">
+  <p style="color:var(--muted);font-size:0.8rem;text-align:center;">소스: <code>app/wikijs_client.py</code> &nbsp;·&nbsp; Wiki.js GraphQL URL: <code>WIKIJS_GRAPHQL_URL</code> 환경 변수</p>
+</div>
+</body>
+</html>
