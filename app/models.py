@@ -146,3 +146,10 @@ class BulkFetchResponse(BaseModel):
     summary: dict
 
 
+# ---- By UUID ----
+
+class PageByUuidResponse(BaseModel):
+    uuid: str
+    type: str | None
+    pages: dict[str, PageResponse | None]  # {"en": PageResponse, "ko": None}
+

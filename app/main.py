@@ -25,6 +25,7 @@ from app.models import (
     DryRunRequest,
     DryRunResponse,
     HealthResponse,
+    PageByUuidResponse,
     PageChangedResponse,
     PageResponse,
     PathItem,
@@ -94,6 +95,35 @@ async def get_page_by_path(
     if page is None:
         raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "path": path})
     return page
+
+
+_UUID_LOCALES = ["en", "ko"]
+
+
+@app.get("/pages/by-uuid", response_model=PageByUuidResponse, dependencies=[Depends(verify_token)])
+async def get_page_by_uuid(
+    uuid: str,
+    type: str = "",
+    client: WikiJsClient = Depends(get_wikijs_client),
+) -> PageByUuidResponse:
+    path = f"{type}/{uuid}" if type else uuid
+    results = await asyncio.gather(
+        *[client.get_page_by_path(path, locale) for locale in _UUID_LOCALES],
+        return_exceptions=True,
+    )
+
+    pages: dict[str, PageResponse | None] = {}
+    for locale, result in zip(_UUID_LOCALES, results):
+        if isinstance(result, WikiJsError):
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": result.errors})
+        if isinstance(result, Exception):
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(result)})
+        pages[locale] = result
+
+    if all(p is None for p in pages.values()):
+        raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "uuid": uuid})
+
+    return PageByUuidResponse(uuid=uuid, type=type or None, pages=pages)
 
 
 @app.get("/pages/search", response_model=SearchResponse, dependencies=[Depends(verify_token)])
