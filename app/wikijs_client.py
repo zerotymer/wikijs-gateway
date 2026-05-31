@@ -115,15 +115,29 @@ class WikiJsError(Exception):
 
 
 class WikiJsClient:
-    def __init__(self, graphql_url: str, api_token: str) -> None:
+    def __init__(self, graphql_url: str, api_token: str, admin_api_token: str | None = None) -> None:
         self._graphql_url = graphql_url
         self._client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {api_token}"},
             timeout=10.0,
         )
+        self._admin_client: httpx.AsyncClient | None = (
+            httpx.AsyncClient(
+                headers={"Authorization": f"Bearer {admin_api_token}"},
+                timeout=10.0,
+            )
+            if admin_api_token
+            else None
+        )
+
+    @property
+    def _write_client(self) -> httpx.AsyncClient:
+        return self._admin_client if self._admin_client is not None else self._client
 
     async def aclose(self) -> None:
         await self._client.aclose()
+        if self._admin_client is not None:
+            await self._admin_client.aclose()
 
     async def get_page_by_path(self, path: str, locale: str) -> PageResponse | None:
         resp = await self._client.post(
@@ -175,7 +189,7 @@ class WikiJsClient:
             "scriptCss": overrides.get("scriptCss", page.scriptCss),
             "scriptJs": overrides.get("scriptJs", page.scriptJs),
         }
-        resp = await self._client.post(
+        resp = await self._write_client.post(
             self._graphql_url,
             json={"query": _MUTATION_UPDATE_PAGE, "variables": variables},
         )
@@ -211,7 +225,7 @@ class WikiJsClient:
             "isPrivate": is_private,
             "tags": tags or [],
         }
-        resp = await self._client.post(
+        resp = await self._write_client.post(
             self._graphql_url,
             json={"query": _MUTATION_CREATE_PAGE, "variables": variables},
         )

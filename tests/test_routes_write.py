@@ -10,6 +10,7 @@ from app.models import PageResponse
 from app.wikijs_client import WikiJsError
 
 TOKEN = "test-token-abc"
+ADMIN_TOKEN = "test-admin-token-xyz"
 
 _CONTENT = "# Hello\n\n<!-- agent:start x -->\nold\n<!-- agent:end x -->\n\n## Section\n\nsome content\n"
 _UPDATED_AT = "2026-05-31T00:00:00.000Z"
@@ -47,7 +48,9 @@ def _settings(**overrides):
     base = {
         "wikijs_graphql_url": "http://wiki:3000/graphql",
         "wikijs_api_token": "wiki-token",
+        "wikijs_admin_api_token": "wiki-admin-token",
         "gateway_token": TOKEN,
+        "gateway_admin_token": ADMIN_TOKEN,
         "gateway_mode": "dry_run",
         "default_locale": "ko",
         "allow_path_prefixes": "/agent,/draft",
@@ -81,7 +84,7 @@ def test_patch_section_dry_run_returns_diff_no_mutation(tmp_path):
     try:
         resp = client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -108,7 +111,7 @@ def test_patch_section_dry_run_creates_audit_file(tmp_path):
     try:
         client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -130,7 +133,7 @@ def test_patch_section_write_calls_mutation(tmp_path):
     try:
         resp = client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -169,7 +172,7 @@ def test_patch_section_write_path_not_allowed(tmp_path):
     try:
         resp = client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/private/secret",
                 "locale": "ko",
@@ -196,7 +199,7 @@ def test_patch_section_page_changed(tmp_path):
     try:
         resp = client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -220,7 +223,7 @@ def test_patch_section_read_only_blocked():
     try:
         resp = client.post(
             "/pages/patch-section",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -243,7 +246,7 @@ def test_upsert_creates_new_page(tmp_path):
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/new-page",
                 "locale": "ko",
@@ -267,7 +270,7 @@ def test_upsert_updates_existing_page(tmp_path):
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -289,7 +292,7 @@ def test_upsert_path_not_allowed(tmp_path):
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/private/secret",
                 "locale": "ko",
@@ -310,7 +313,7 @@ def test_upsert_dry_run_blocked():
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -330,7 +333,7 @@ def test_upsert_read_only_blocked():
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",
@@ -350,7 +353,7 @@ def test_upsert_wikijs_error(tmp_path):
     try:
         resp = client.post(
             "/pages/upsert",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "path": "/agent/example",
                 "locale": "ko",

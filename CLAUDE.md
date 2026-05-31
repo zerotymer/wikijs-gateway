@@ -214,7 +214,7 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 |------|------|------|
 | `c5ff90a6-6359-497c-8404-ccfe27bf5580` | [step6-search.md](instructions/.completed/c5ff90a6-6359-497c-8404-ccfe27bf5580.md) | completed |
 | `b60f3f2e-8002-44f2-8960-b417c803331e` | [step7-bulk-api.md](instructions/.completed/b60f3f2e-8002-44f2-8960-b417c803331e.md) | completed |
-| `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/step8-auth-roles.md) | pending |
+| `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/.completed/f8363f94-7f73-4a73-bae4-75e9e38d585c.md) | completed |
 
 
 ## 개발 규칙

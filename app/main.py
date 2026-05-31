@@ -7,7 +7,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from app.audit import AuditRecord, write_audit
-from app.auth import verify_token
+from app.auth import verify_admin_token, verify_token
 from app.config import GatewayMode, Settings, get_settings
 from app.locking import compute_hash, verify_hash
 from app.markdown_patch import (
@@ -47,7 +47,11 @@ from app.wikijs_client import WikiJsClient, WikiJsError
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
-    client = WikiJsClient(settings.wikijs_graphql_url, settings.wikijs_api_token)
+    client = WikiJsClient(
+        settings.wikijs_graphql_url,
+        settings.wikijs_api_token,
+        admin_api_token=settings.wikijs_admin_api_token,
+    )
     app.state.wikijs_client = client
     yield
     await client.aclose()
@@ -126,7 +130,7 @@ async def search_pages(
 
 @app.post(
     "/pages/dry-run",
-    dependencies=[Depends(verify_token)],
+    dependencies=[Depends(verify_admin_token)],
     responses={403: {"model": PageChangedResponse}},
 )
 async def dry_run_patch(
@@ -205,7 +209,7 @@ def _apply_patch(content: str, op: PatchOperation) -> str:
 
 @app.post(
     "/pages/patch-section",
-    dependencies=[Depends(verify_token)],
+    dependencies=[Depends(verify_admin_token)],
     responses={403: {"model": PageChangedResponse}},
 )
 async def patch_section(
@@ -513,7 +517,7 @@ async def bulk_fetch_pages(
     )
 
 
-@app.post("/pages/bulk", response_model=BulkResponse, dependencies=[Depends(verify_token)])
+@app.post("/pages/bulk", response_model=BulkResponse, dependencies=[Depends(verify_admin_token)])
 async def bulk_operations(
     body: BulkRequest,
     settings: Settings = Depends(get_settings),
@@ -557,7 +561,7 @@ async def bulk_operations(
     )
 
 
-@app.post("/pages/upsert", dependencies=[Depends(verify_token)])
+@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)])
 async def upsert_page(
     body: UpsertRequest,
     settings: Settings = Depends(get_settings),

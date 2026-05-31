@@ -10,6 +10,7 @@ from app.models import PageResponse
 from app.wikijs_client import WikiJsError
 
 TOKEN = "test-token-abc"
+ADMIN_TOKEN = "test-admin-token-xyz"
 
 _CONTENT = "# Hello\n\n<!-- agent:start x -->\nold\n<!-- agent:end x -->\n\n## Section\n\nsome content\n"
 _UPDATED_AT = "2026-05-31T00:00:00.000Z"
@@ -46,7 +47,9 @@ def _settings(**overrides):
     base = {
         "wikijs_graphql_url": "http://wiki:3000/graphql",
         "wikijs_api_token": "wiki-token",
+        "wikijs_admin_api_token": "wiki-admin-token",
         "gateway_token": TOKEN,
+        "gateway_admin_token": ADMIN_TOKEN,
         "gateway_mode": "dry_run",
         "default_locale": "ko",
         "allow_path_prefixes": "/agent,/draft",
@@ -141,7 +144,7 @@ def test_bulk_mixed_dry_run_mode(tmp_path):
     try:
         resp = client.post(
             "/pages/bulk",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "operations": [
                     {
@@ -201,7 +204,7 @@ def test_bulk_write_mode_partial_fail(tmp_path):
     try:
         resp = client.post(
             "/pages/bulk",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "operations": [
                     {
@@ -246,7 +249,7 @@ def test_bulk_write_mode_path_not_allowed(tmp_path):
     try:
         resp = client.post(
             "/pages/bulk",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "operations": [
                     {
@@ -277,7 +280,7 @@ def test_bulk_read_only_rejects_write():
     try:
         resp = client.post(
             "/pages/bulk",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "operations": [
                     {
@@ -307,7 +310,7 @@ def test_bulk_too_large():
     try:
         resp = client.post(
             "/pages/bulk",
-            headers={"Authorization": f"Bearer {TOKEN}"},
+            headers={"Authorization": f"Bearer {ADMIN_TOKEN}"},
             json={
                 "operations": [
                     {

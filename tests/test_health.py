@@ -10,7 +10,9 @@ TOKEN = "test-token-abc"
 TEST_ENV = {
     "wikijs_graphql_url": "http://wiki:3000/graphql",
     "wikijs_api_token": "wiki-token",
+    "wikijs_admin_api_token": "wiki-admin-token",
     "gateway_token": TOKEN,
+    "gateway_admin_token": "admin-token-unused",
     "gateway_mode": "read_only",
 }
 
