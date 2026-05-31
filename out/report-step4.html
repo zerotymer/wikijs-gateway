@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Step 4 완료 보고서 — Audit Log + Write 엔드포인트</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #5b8dee;
+    --accent2: #7c6af4;
+    --green: #34d399;
+    --yellow: #fbbf24;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #8892aa;
+    --code-bg: #12151f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+
+  nav { width: 220px; min-width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  nav h2 { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); padding: 0 20px 12px; }
+  nav a { display: block; padding: 7px 20px; font-size: 13px; color: var(--muted); text-decoration: none; border-left: 3px solid transparent; transition: all .15s; }
+  nav a:hover, nav a.active { color: var(--accent); border-left-color: var(--accent); background: rgba(91,141,238,.08); }
+
+  main { flex: 1; padding: 40px 48px; max-width: 960px; }
+
+  .header { margin-bottom: 40px; }
+  .header h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  .header .meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.green { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+  .badge.blue { background: rgba(91,141,238,.15); color: var(--accent); border: 1px solid rgba(91,141,238,.3); }
+  .badge.purple { background: rgba(124,106,244,.15); color: var(--accent2); border: 1px solid rgba(124,106,244,.3); }
+
+  section { margin-bottom: 48px; scroll-margin-top: 24px; }
+  section h2 { font-size: 18px; font-weight: 700; color: var(--text); padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  section h3 { font-size: 14px; font-weight: 600; color: var(--accent); margin: 20px 0 10px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .card .value { font-size: 26px; font-weight: 700; }
+  .card .value.green { color: var(--green); }
+  .card .value.blue { color: var(--accent); }
+  .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 14px; background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .pass::before { content: "✓"; color: var(--green); font-weight: 700; margin-right: 6px; }
+  .warn::before { content: "⚠"; color: var(--yellow); margin-right: 6px; }
+  .fail::before { content: "✗"; color: var(--red); margin-right: 6px; }
+  .skip::before { content: "—"; color: var(--muted); margin-right: 6px; }
+
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; overflow-x: auto; font-size: 12.5px; line-height: 1.6; margin: 12px 0; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+  p code, td code, li code { background: var(--code-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+  .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px; text-align: center; margin: 16px 0; }
+  .arch-svg { max-width: 100%; }
+
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ''; position: absolute; left: 9px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .step { position: relative; margin-bottom: 20px; }
+  .step::before { content: ''; position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--green); border: 2px solid var(--bg); }
+  .step .title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .step .desc { font-size: 13px; color: var(--muted); }
+
+  .checklist { list-style: none; }
+  .checklist li { padding: 7px 0; font-size: 13px; display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li .ck { color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+  .alert { border-radius: 8px; padding: 14px 18px; margin: 14px 0; font-size: 13px; }
+  .alert.info { background: rgba(91,141,238,.1); border-left: 3px solid var(--accent); }
+  .alert.ok { background: rgba(52,211,153,.1); border-left: 3px solid var(--green); }
+  .alert.warn { background: rgba(251,191,36,.1); border-left: 3px solid var(--yellow); }
+
+  p { font-size: 13.5px; line-height: 1.7; color: var(--muted); margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<nav>
+  <h2>wikijs-gateway</h2>
+  <a href="#summary">1. 요약</a>
+  <a href="#scope">2. 범위</a>
+  <a href="#env">3. 대상 환경</a>
+  <a href="#checklist">4. 완료 체크리스트</a>
+  <a href="#arch">5. 아키텍처</a>
+  <a href="#steps">6. 구현 단계</a>
+  <a href="#config">7. 설정 변경</a>
+  <a href="#validation">8. 검증 근거</a>
+  <a href="#security">9. 보안 검토</a>
+  <a href="#compat">10. 호환성</a>
+  <a href="#impact">11. 운영 영향도</a>
+  <a href="#rollback">12. 롤백</a>
+  <a href="#remaining">13. 남은 작업</a>
+  <a href="#appendix">14. 부록</a>
+</nav>
+
+<main>
+
+  <div class="header">
+    <h1>Step 4 완료 보고서</h1>
+    <p style="color:var(--muted);font-size:14px;">Audit Log + Write 엔드포인트 (patch-section / upsert)</p>
+    <div class="meta">
+      <span class="badge green">✓ COMPLETED</span>
+      <span class="badge blue">브랜치: feat/step4-audit-write</span>
+      <span class="badge purple">커밋: 9d4f6e5</span>
+      <span style="font-size:12px;color:var(--muted);align-self:center;">2026-05-31</span>
+    </div>
+  </div>
+
+  <!-- 1. 요약 -->
+  <section id="summary">
+    <h2>1. 요약</h2>
+    <div class="cards">
+      <div class="card">
+        <div class="label">완료율</div>
+        <div class="value green">100%</div>
+        <div class="sub">모든 완료 조건 충족</div>
+      </div>
+      <div class="card">
+        <div class="label">테스트</div>
+        <div class="value green">18 / 18</div>
+        <div class="sub">신규 테스트 전체 통과</div>
+      </div>
+      <div class="card">
+        <div class="label">신규 파일</div>
+        <div class="value blue">3</div>
+        <div class="sub">audit.py, test_audit.py, test_routes_write.py</div>
+      </div>
+      <div class="card">
+        <div class="label">수정 파일</div>
+        <div class="value blue">3</div>
+        <div class="sub">models.py, wikijs_client.py, main.py</div>
+      </div>
+    </div>
+    <div class="alert ok">
+      <code>POST /pages/patch-section</code> + <code>POST /pages/upsert</code> 구현 완료. <code>GATEWAY_MODE=write</code>에서만 실제 Wiki.js mutation을 호출하며, 모든 dry-run/write 요청에 audit 파일을 생성한다.
+    </div>
+  </section>
+
+  <!-- 2. 범위 -->
+  <section id="scope">
+    <h2>2. 범위와 전제</h2>
+    <table>
+      <tr><th>항목</th><th>내용</th></tr>
+      <tr><td>지시서 UUID</td><td><code>0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004</code></td></tr>
+      <tr><td>브랜치</td><td><code>feat/step4-audit-write</code> (from <code>feat/step3-markdown-patch-dryrun</code>)</td></tr>
+      <tr><td>포함 범위</td><td>audit.py 신규, wikijs_client update/create/upsert, models PatchSection/Upsert, main.py write 엔드포인트, 유닛 테스트</td></tr>
+      <tr><td>제외 범위</td><td>Docker 배포 (Step 5), render_after_write 호출</td></tr>
+      <tr><td>전제</td><td>Step 3 완료 — Markdown Patch + dry-run 엔드포인트 동작 중</td></tr>
+    </table>
+  </section>
+
+  <!-- 3. 환경 -->
+  <section id="env">
+    <h2>3. 대상 환경</h2>
+    <table>
+      <tr><th>항목</th><th>값</th></tr>
+      <tr><td>OS</td><td>Linux 5.14.0 (el9)</td></tr>
+      <tr><td>Python</td><td>3.12.7</td></tr>
+      <tr><td>프레임워크</td><td>FastAPI + uvicorn[standard]</td></tr>
+      <tr><td>HTTP 클라이언트</td><td>httpx (비동기)</td></tr>
+      <tr><td>테스트 러너</td><td>pytest 9.0.3 + anyio 4.2.0 + respx 0.23.1</td></tr>
+      <tr><td>패키지 관리</td><td>uv pip (전역 규칙)</td></tr>
+    </table>
+  </section>
+
+  <!-- 4. 체크리스트 -->
+  <section id="checklist">
+    <h2>4. 완료 체크리스트</h2>
+    <ul class="checklist">
+      <li><span class="ck">✓</span> <code>GATEWAY_MODE=write</code> + allowlist 경로 → Wiki.js <code>pages.update</code> 호출 성공 (mock 검증)</li>
+      <li><span class="ck">✓</span> <code>GATEWAY_MODE=dry_run</code> → mutation 없이 diff만 반환</li>
+      <li><span class="ck">✓</span> allowlist 미포함 경로 → HTTP 403 (<code>PATH_NOT_ALLOWED</code>)</li>
+      <li><span class="ck">✓</span> 모든 dry-run/write 요청 → audit 파일 생성 확인 (<code>tmp_path</code> fixture)</li>
+      <li><span class="ck">✓</span> <code>POST /pages/upsert</code> — 신규 page 생성(<code>created: true</code>) 및 기존 page 덮어쓰기(<code>created: false</code>)</li>
+      <li><span class="ck">✓</span> <code>GATEWAY_MODE=read_only</code> → <code>POST /pages/patch-section</code> 403 차단</li>
+      <li><span class="ck">✓</span> <code>GATEWAY_MODE=dry_run</code> / <code>read_only</code> → <code>POST /pages/upsert</code> 403 차단</li>
+      <li><span class="ck">✓</span> baseHash 불일치 → <code>PAGE_CHANGED</code> 응답</li>
+      <li><span class="ck">✓</span> audit 파일: <code>{YYYY}/{MM}/{DD}/{ts}_{slug}.json</code> + <code>.diff</code> 분리 저장</li>
+      <li><span class="ck">✓</span> audit 쓰기 실패 → 서비스 중단 없이 로그만 출력</li>
+      <li><span class="ck">✓</span> <code>WikiJsClient.update_page</code> — 기존 metadata 보존, overrides 적용</li>
+      <li><span class="ck">✓</span> <code>WikiJsClient.create_page</code> / <code>upsert_page</code> 구현</li>
+      <li><span class="ck">✓</span> 지시서 완료 처리 → <code>instructions/.completed/</code></li>
+    </ul>
+  </section>
+
+  <!-- 5. 아키텍처 -->
+  <section id="arch">
+    <h2>5. 아키텍처 개요</h2>
+    <div class="diagram">
+      <svg class="arch-svg" viewBox="0 0 780 380" xmlns="http://www.w3.org/2000/svg" font-family="monospace" font-size="13">
+        <!-- Agent -->
+        <rect x="10" y="160" width="120" height="60" rx="8" fill="#1a1d27" stroke="#5b8dee" stroke-width="1.5"/>
+        <text x="70" y="185" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="600">Agent / Client</text>
+        <text x="70" y="203" text-anchor="middle" fill="#8892aa" font-size="10">PATCH_SECTION / UPSERT</text>
+        <line x1="130" y1="190" x2="168" y2="190" stroke="#5b8dee" stroke-width="1.5" marker-end="url(#arr)"/>
+
+        <!-- Gateway outer -->
+        <rect x="168" y="30" width="440" height="320" rx="10" fill="#12151f" stroke="#2e3350" stroke-width="1.5" stroke-dasharray="6,3"/>
+        <text x="388" y="52" text-anchor="middle" fill="#8892aa" font-size="11" letter-spacing="1">wikijs-agent-gateway</text>
+
+        <!-- auth -->
+        <rect x="185" y="62" width="120" height="36" rx="6" fill="#1a1d27" stroke="#2e3350"/>
+        <text x="245" y="84" text-anchor="middle" fill="#8892aa" font-size="11">verify_token</text>
+
+        <!-- require_mode -->
+        <rect x="185" y="108" width="120" height="36" rx="6" fill="#1a1d27" stroke="#7c6af4"/>
+        <text x="245" y="124" text-anchor="middle" fill="#7c6af4" font-size="11" font-weight="600">require_mode</text>
+        <text x="245" y="138" text-anchor="middle" fill="#8892aa" font-size="9">(≥ dry_run / ≥ write)</text>
+
+        <!-- check_path_allowed -->
+        <rect x="185" y="154" width="120" height="36" rx="6" fill="#1a1d27" stroke="#fbbf24"/>
+        <text x="245" y="170" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">check_path_allowed</text>
+        <text x="245" y="184" text-anchor="middle" fill="#8892aa" font-size="9">ALLOW_PATH_PREFIXES</text>
+
+        <!-- locking -->
+        <rect x="185" y="200" width="120" height="36" rx="6" fill="#1a1d27" stroke="#34d399"/>
+        <text x="245" y="216" text-anchor="middle" fill="#34d399" font-size="11" font-weight="600">verify_hash</text>
+        <text x="245" y="230" text-anchor="middle" fill="#8892aa" font-size="9">PAGE_CHANGED if miss</text>
+
+        <!-- markdown_patch -->
+        <rect x="185" y="246" width="120" height="36" rx="6" fill="#1a1d27" stroke="#5b8dee"/>
+        <text x="245" y="262" text-anchor="middle" fill="#5b8dee" font-size="11" font-weight="600">markdown_patch</text>
+        <text x="245" y="276" text-anchor="middle" fill="#8892aa" font-size="9">patch + diff</text>
+
+        <!-- write_audit -->
+        <rect x="185" y="292" width="120" height="36" rx="6" fill="#1a1d27" stroke="#f87171"/>
+        <text x="245" y="308" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">write_audit</text>
+        <text x="245" y="322" text-anchor="middle" fill="#8892aa" font-size="9">.json + .diff 파일</text>
+
+        <!-- wikijs_client -->
+        <rect x="350" y="130" width="145" height="120" rx="6" fill="#1a1d27" stroke="#5b8dee"/>
+        <text x="422" y="152" text-anchor="middle" fill="#5b8dee" font-size="11" font-weight="600">WikiJsClient</text>
+        <text x="422" y="172" text-anchor="middle" fill="#8892aa" font-size="10">update_page</text>
+        <text x="422" y="190" text-anchor="middle" fill="#8892aa" font-size="10">create_page</text>
+        <text x="422" y="208" text-anchor="middle" fill="#8892aa" font-size="10">upsert_page</text>
+        <text x="422" y="226" text-anchor="middle" fill="#fbbf24" font-size="9">write mode only</text>
+        <text x="422" y="242" text-anchor="middle" fill="#8892aa" font-size="9">→ GraphQL mutation</text>
+
+        <!-- audit dir -->
+        <rect x="350" y="270" width="145" height="50" rx="6" fill="#1a1d27" stroke="#f87171"/>
+        <text x="422" y="291" text-anchor="middle" fill="#f87171" font-size="11" font-weight="600">Audit Storage</text>
+        <text x="422" y="308" text-anchor="middle" fill="#8892aa" font-size="9">/audit/YYYY/MM/DD/</text>
+
+        <!-- arrows inside -->
+        <line x1="305" y1="160" x2="352" y2="175" stroke="#2e3350" stroke-width="1.2"/>
+        <line x1="305" y1="218" x2="352" y2="200" stroke="#2e3350" stroke-width="1.2"/>
+        <line x1="305" y1="310" x2="352" y2="295" stroke="#f87171" stroke-width="1.2"/>
+
+        <!-- Wiki.js -->
+        <rect x="635" y="155" width="130" height="70" rx="8" fill="#1a1d27" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="700" y="180" text-anchor="middle" fill="#fbbf24" font-size="12" font-weight="600">Wiki.js GraphQL</text>
+        <text x="700" y="198" text-anchor="middle" fill="#8892aa" font-size="10">pages.update</text>
+        <text x="700" y="213" text-anchor="middle" fill="#8892aa" font-size="10">pages.create</text>
+        <line x1="495" y1="185" x2="635" y2="185" stroke="#fbbf24" stroke-width="1.2" marker-end="url(#arry)"/>
+
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#5b8dee"/>
+          </marker>
+          <marker id="arry" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <div class="alert info">
+      Step 4에서 <code>GATEWAY_MODE=write</code>일 때만 Wiki.js mutation을 호출한다. <code>dry_run</code> 모드에서는 patch 계산·diff 반환만 수행하고, 모든 경우에 audit 파일이 생성된다.
+    </div>
+  </section>
+
+  <!-- 6. 구현 단계 -->
+  <section id="steps">
+    <h2>6. 구현 단계</h2>
+    <div class="timeline">
+      <div class="step">
+        <div class="title">app/audit.py — 신규 파일</div>
+        <div class="desc"><code>AuditRecord</code> dataclass 정의. <code>write_audit(record, audit_dir)</code>: <code>{YYYY}/{MM}/{DD}/{ts}_{slug}.json</code> + <code>.diff</code> 분리 저장. audit 실패 시 <code>logger.exception</code>만 출력하고 요청을 계속 처리.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/wikijs_client.py — update_page / create_page / upsert_page 추가</div>
+        <div class="desc"><code>_MUTATION_UPDATE_PAGE</code>, <code>_MUTATION_CREATE_PAGE</code> GraphQL 쿼리 추가. <code>update_page</code>는 기존 page metadata를 기본값으로 보존하고 overrides만 덮어씀. <code>upsert_page</code>는 <code>get_page_by_path</code> 결과에 따라 update/create 분기.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/models.py — PatchSectionRequest/Response, UpsertRequest/Response 추가</div>
+        <div class="desc">기존 stub(<code># Step 4</code> 주석) 제거 후 실제 pydantic 모델 4개 추가. <code>PatchSectionResponse</code>에 <code>pageId</code> 포함.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/main.py — POST /pages/patch-section 엔드포인트</div>
+        <div class="desc">모드 게이트(<code>≥ dry_run</code>) → page 조회 + hash 검증 → patch 계산 → audit 준비. <code>write</code> 모드일 때만 <code>check_path_allowed</code> + <code>update_page</code> 호출. 모든 경우 audit 기록.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/main.py — POST /pages/upsert 엔드포인트</div>
+        <div class="desc">모드 게이트(<code>≥ write</code>) → <code>check_path_allowed</code> → <code>upsert_page</code> 호출 → audit 기록. <code>created</code> 플래그로 신규/덮어쓰기 구분.</div>
+      </div>
+      <div class="step">
+        <div class="title">app/main.py — check_path_allowed 공통 함수 추출</div>
+        <div class="desc"><code>ALLOW_PATH_PREFIXES</code>와 path prefix 매칭. 미포함 시 <code>403 PATH_NOT_ALLOWED</code> 반환.</div>
+      </div>
+      <div class="step">
+        <div class="title">tests/test_audit.py — 6 cases</div>
+        <div class="desc">JSON/diff 파일 생성, 경로 슬러그 변환, diff 없을 때 .diff 미생성, 부모 디렉터리 자동 생성, 잘못된 경로에서 예외 미발생.</div>
+      </div>
+      <div class="step">
+        <div class="title">tests/test_routes_write.py — 12 cases</div>
+        <div class="desc">dry_run diff-only + audit 생성, write mutation 호출, PATH_NOT_ALLOWED 403, MODE_NOT_ALLOWED 403, PAGE_CHANGED 응답, upsert create/update/block 케이스.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. 설정 변경 -->
+  <section id="config">
+    <h2>7. 설정 변경</h2>
+    <table>
+      <tr><th>파일</th><th>변경 내용</th></tr>
+      <tr><td><code>app/audit.py</code></td><td>신규 — AuditRecord + write_audit</td></tr>
+      <tr><td><code>app/wikijs_client.py</code></td><td>mutation 쿼리 2개 + 메서드 3개 추가</td></tr>
+      <tr><td><code>app/models.py</code></td><td>Step 4 stub 제거 + 모델 4개 추가</td></tr>
+      <tr><td><code>app/main.py</code></td><td>import 확장, 엔드포인트 2개 + 공통 함수 추가</td></tr>
+      <tr><td><code>.env</code></td><td>변경 없음 (AUDIT_DIR, ALLOW_PATH_PREFIXES는 Step 1에서 이미 정의)</td></tr>
+    </table>
+    <div class="alert info">
+      <code>AUDIT_DIR</code> 기본값은 <code>/audit</code>. 테스트에서는 <code>pytest tmp_path</code> fixture로 격리된 디렉터리를 사용한다.
+    </div>
+  </section>
+
+  <!-- 8. 검증 근거 -->
+  <section id="validation">
+    <h2>8. 검증 근거</h2>
+    <table>
+      <tr><th>검증 항목</th><th>방법</th><th>결과</th></tr>
+      <tr><td class="pass">write 모드 mutation 호출</td><td><code>mock.update_page.assert_called_once()</code></td><td>통과</td></tr>
+      <tr><td class="pass">dry_run 모드 mutation 미호출</td><td><code>mock.update_page.assert_not_called()</code></td><td>통과</td></tr>
+      <tr><td class="pass">PATH_NOT_ALLOWED 403</td><td><code>/private/secret</code> 요청 → <code>resp.status_code == 403</code></td><td>통과</td></tr>
+      <tr><td class="pass">MODE_NOT_ALLOWED 403</td><td><code>read_only</code> → patch-section / upsert 양쪽 차단 확인</td><td>통과</td></tr>
+      <tr><td class="pass">audit JSON 파일 생성</td><td><code>tmp_path.rglob("*.json")</code> → 1개</td><td>통과</td></tr>
+      <tr><td class="pass">audit .diff 분리 저장</td><td><code>tmp_path.rglob("*.diff")</code> → 1개</td><td>통과</td></tr>
+      <tr><td class="pass">audit 실패 내성</td><td><code>/proc/invalid_dir</code>에 기록 시도 → 예외 없음</td><td>통과</td></tr>
+      <tr><td class="pass">PAGE_CHANGED 응답</td><td>다른 content로 mock → <code>error == "PAGE_CHANGED"</code></td><td>통과</td></tr>
+      <tr><td class="pass">upsert created=true</td><td><code>upsert_page</code> returns <code>(result, True)</code></td><td>통과</td></tr>
+      <tr><td class="pass">upsert created=false</td><td><code>upsert_page</code> returns <code>(result, False)</code></td><td>통과</td></tr>
+    </table>
+    <pre>$ python -m pytest tests/test_audit.py tests/test_routes_write.py -v
+======== 18 passed in 0.52s ========</pre>
+  </section>
+
+  <!-- 9. 보안 검토 -->
+  <section id="security">
+    <h2>9. 보안 검토</h2>
+    <table>
+      <tr><th>항목</th><th>위험도</th><th>처리</th></tr>
+      <tr><td class="pass">GATEWAY_TOKEN 검증</td><td>LOW</td><td>모든 엔드포인트에 <code>verify_token</code> dependency 적용</td></tr>
+      <tr><td class="pass">Path allowlist 강제</td><td>LOW</td><td>write 모드에서 <code>check_path_allowed</code> 통과 후 mutation 허용</td></tr>
+      <tr><td class="pass">mode gate</td><td>LOW</td><td>read_only → patch/upsert 완전 차단. dry_run → upsert 차단</td></tr>
+      <tr><td class="pass">audit 기록 누락 방지</td><td>LOW</td><td>write/dry-run 호출은 모두 audit 기록 후 응답 반환</td></tr>
+      <tr><td class="pass">API 토큰 하드코딩 없음</td><td>LOW</td><td><code>WIKIJS_API_TOKEN</code> 환경 변수만 사용</td></tr>
+      <tr><td class="warn">audit 디렉터리 권한</td><td>MEDIUM</td><td>컨테이너 환경에서 <code>AUDIT_DIR</code> 마운트 경로 권한 설정 필요 (Step 5)</td></tr>
+    </table>
+  </section>
+
+  <!-- 10. 호환성 -->
+  <section id="compat">
+    <h2>10. 호환성 및 Deprecated 항목</h2>
+    <table>
+      <tr><th>항목</th><th>분류</th><th>비고</th></tr>
+      <tr><td>Python 3.12</td><td class="pass">supported</td><td>전체 스택 검증 완료</td></tr>
+      <tr><td>FastAPI / pydantic v2</td><td class="pass">supported</td><td>model_dump() API 사용</td></tr>
+      <tr><td>Wiki.js v2 GraphQL pages.update/create</td><td class="pass">supported</td><td>설계 문서 §11.2~11.3 준수</td></tr>
+      <tr><td>Step 4 stub 코드 (<code># --- Step 4 ---</code>)</td><td class="skip">removed</td><td>models.py 내 주석 stub 제거 후 실제 모델로 대체</td></tr>
+      <tr><td>trio backend (anyio)</td><td class="warn">legacy</td><td>trio 미설치로 <code>[trio]</code> variant 7건 실패 — 기존 이슈, step4 변경과 무관</td></tr>
+    </table>
+  </section>
+
+  <!-- 11. 운영 영향도 -->
+  <section id="impact">
+    <h2>11. 운영 영향도</h2>
+    <table>
+      <tr><th>구성요소</th><th>영향</th></tr>
+      <tr><td>기존 엔드포인트 (<code>/health</code>, <code>/pages/by-path</code>, <code>/pages/dry-run</code>)</td><td>변경 없음. 기존 동작 유지.</td></tr>
+      <tr><td>신규 엔드포인트 2개</td><td><code>GATEWAY_MODE=write</code>로 설정하지 않으면 mutation 호출 없음</td></tr>
+      <tr><td>audit 파일 쓰기</td><td><code>AUDIT_DIR</code>에 파일 생성. 실패 시 서비스 중단 없음</td></tr>
+      <tr><td>Wiki.js GraphQL</td><td>write 모드에서 <code>pages.update</code> / <code>pages.create</code> 신규 호출</td></tr>
+    </table>
+    <div class="alert warn">
+      Step 5(Docker 배포) 전까지 <code>GATEWAY_MODE</code> 기본값은 <code>dry_run</code>으로 유지한다. Production에서 write 활성화 시 <code>ALLOW_PATH_PREFIXES</code>를 명시적으로 설정해야 한다.
+    </div>
+  </section>
+
+  <!-- 12. 롤백 -->
+  <section id="rollback">
+    <h2>12. 롤백 계획</h2>
+    <table>
+      <tr><th>방법</th><th>명령</th></tr>
+      <tr><td>브랜치 롤백</td><td><code>git checkout feat/step3-markdown-patch-dryrun</code></td></tr>
+      <tr><td>mode 차단</td><td><code>GATEWAY_MODE=dry_run</code> 으로 .env 변경 → 서비스 재시작</td></tr>
+      <tr><td>audit 디렉터리 정리</td><td><code>rm -rf $AUDIT_DIR/YYYY/MM/DD/</code></td></tr>
+    </table>
+  </section>
+
+  <!-- 13. 남은 작업 -->
+  <section id="remaining">
+    <h2>13. 남은 작업</h2>
+    <ul class="checklist">
+      <li><span class="ck" style="color:var(--yellow);">→</span> Step 5: Docker + Compose overlay 빌드 및 배포 검증</li>
+      <li><span class="ck" style="color:var(--yellow);">→</span> Step 5: <code>AUDIT_DIR</code> 볼륨 마운트 권한 설정</li>
+      <li><span class="ck" style="color:var(--yellow);">→</span> Step 5: <code>127.0.0.1:8088</code> bind 및 Wiki.js 네트워크 연결 확인</li>
+      <li><span class="ck" style="color:var(--yellow);">→</span> <code>render_after_write</code> 옵션 구현 (선택)</li>
+      <li><span class="ck" style="color:var(--yellow);">→</span> trio 모듈 설치로 <code>[trio]</code> variant 테스트 복구 (선택)</li>
+    </ul>
+  </section>
+
+  <!-- 14. 부록 -->
+  <section id="appendix">
+    <h2>14. 부록</h2>
+    <h3>전체 테스트 결과</h3>
+    <pre>$ python -m pytest tests/test_audit.py tests/test_routes_write.py -v
+tests/test_audit.py::test_write_audit_creates_json PASSED
+tests/test_audit.py::test_write_audit_creates_diff_file PASSED
+tests/test_audit.py::test_write_audit_no_diff_file_when_empty PASSED
+tests/test_audit.py::test_write_audit_path_slug_conversion PASSED
+tests/test_audit.py::test_write_audit_does_not_raise_on_invalid_dir PASSED
+tests/test_audit.py::test_write_audit_creates_parent_dirs PASSED
+tests/test_routes_write.py::test_patch_section_dry_run_returns_diff_no_mutation PASSED
+tests/test_routes_write.py::test_patch_section_dry_run_creates_audit_file PASSED
+tests/test_routes_write.py::test_patch_section_write_calls_mutation PASSED
+tests/test_routes_write.py::test_patch_section_write_path_not_allowed PASSED
+tests/test_routes_write.py::test_patch_section_page_changed PASSED
+tests/test_routes_write.py::test_patch_section_read_only_blocked PASSED
+tests/test_routes_write.py::test_upsert_creates_new_page PASSED
+tests/test_routes_write.py::test_upsert_updates_existing_page PASSED
+tests/test_routes_write.py::test_upsert_path_not_allowed PASSED
+tests/test_routes_write.py::test_upsert_dry_run_blocked PASSED
+tests/test_routes_write.py::test_upsert_read_only_blocked PASSED
+tests/test_routes_write.py::test_upsert_wikijs_error PASSED
+======== 18 passed in 0.52s ========</pre>
+
+    <h3>신규 파일 목록</h3>
+    <pre>app/audit.py          — AuditRecord dataclass + write_audit 함수
+tests/test_audit.py   — audit 유닛 테스트 6 cases
+tests/test_routes_write.py — write 엔드포인트 통합 테스트 12 cases</pre>
+
+    <h3>audit 파일 구조 예시</h3>
+    <pre>/audit/
+  2026/
+    05/
+      31/
+        20260531T104500Z_agent_example.json
+        20260531T104500Z_agent_example.diff</pre>
+
+    <h3>audit JSON 스키마</h3>
+    <pre>{
+  "timestamp": "2026-05-31T10:45:00.000Z",
+  "request_id": "uuid4",
+  "path": "/agent/example",
+  "locale": "ko",
+  "operation_type": "replace_between_markers",
+  "base_hash": "sha256:...",
+  "current_hash": "sha256:...",
+  "new_hash": "sha256:...",
+  "wikijs_result": {"succeeded": true, ...},
+  "mode": "write"
+}</pre>
+
+    <h3>커밋 정보</h3>
+    <pre>commit 9d4f6e5
+feat(step4): audit.py + POST /pages/patch-section + POST /pages/upsert 구현
+
+8 files changed, 860 insertions(+), 4 deletions(-)</pre>
+  </section>
+
+</main>
+</body>
+</html>
