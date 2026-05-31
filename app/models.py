@@ -15,9 +15,28 @@ class ErrorResponse(BaseModel):
     message: str
 
 
-# --- Step 2: Page read stubs ---
-# class PageByPathRequest(BaseModel): ...
-# class PageResponse(BaseModel): ...
+class PageResponse(BaseModel):
+    id: int
+    path: str
+    locale: str
+    title: str
+    description: str
+    content: str
+    editor: str
+    isPublished: bool
+    isPrivate: bool
+    updatedAt: str
+    contentHash: str
+    tags: list[str]
+    scriptCss: str | None = None
+    scriptJs: str | None = None
+
+
+class WikiJsErrorResponse(BaseModel):
+    ok: bool = False
+    error: str
+    details: list[dict] = []
+
 
 # --- Step 3: Dry-run / patch stubs ---
 # class PatchSectionRequest(BaseModel): ...
