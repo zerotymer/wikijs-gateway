@@ -156,6 +156,45 @@ async def test_get_page_by_path_leading_slash_normalized(client):
     await client.aclose()
 
 
+_TEST_UUID = "550e8400-e29b-41d4-a716-446655440000"
+
+_SEARCH_HIT = {"id": 10, "path": f"skill/{_TEST_UUID}", "title": "T", "locale": "en", "description": "", "updatedAt": "2026-05-31T00:00:00.000Z"}
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_path_by_uuid_found_with_prefix(client):
+    respx.post(GRAPHQL_URL).mock(
+        return_value=_graphql_response({"pages": {"search": {"results": [_SEARCH_HIT], "suggestions": [], "totalHits": 1}}})
+    )
+    result = await client.find_path_by_uuid(_TEST_UUID)
+    assert result == f"skill/{_TEST_UUID}"
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_path_by_uuid_not_found(client):
+    respx.post(GRAPHQL_URL).mock(
+        return_value=_graphql_response({"pages": {"search": {"results": [], "suggestions": [], "totalHits": 0}}})
+    )
+    result = await client.find_path_by_uuid(_TEST_UUID)
+    assert result is None
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_path_by_uuid_found_bare(client):
+    bare_hit = {**_SEARCH_HIT, "path": _TEST_UUID}
+    respx.post(GRAPHQL_URL).mock(
+        return_value=_graphql_response({"pages": {"search": {"results": [bare_hit], "suggestions": [], "totalHits": 1}}})
+    )
+    result = await client.find_path_by_uuid(_TEST_UUID)
+    assert result == _TEST_UUID
+    await client.aclose()
+
+
 def test_compute_hash_deterministic():
     h1 = compute_hash(1, "2026-05-31T00:00:00Z", "content")
     h2 = compute_hash(1, "2026-05-31T00:00:00Z", "content")

@@ -96,8 +96,28 @@ def test_by_uuid_neither_exists_returns_404():
 
 
 def test_by_uuid_without_type():
-    """type 생략 시 path = uuid 단독 사용"""
+    """type 생략 시 search fallback이 prefix/uuid 경로를 찾아 type을 복원한다"""
     mock = AsyncMock()
+    mock.find_path_by_uuid.return_value = f"skill/{_UUID}"
+    mock.get_page_by_path.side_effect = lambda path, locale: (
+        _page(locale) if locale == "en" else None
+    )
+    client = _setup(mock)
+    try:
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "skill"
+        mock.find_path_by_uuid.assert_called_once_with(_UUID)
+        mock.get_page_by_path.assert_any_call(f"skill/{_UUID}", "en")
+    finally:
+        _teardown()
+
+
+def test_by_uuid_without_type_bare_path():
+    """type 생략 + search가 bare uuid 경로를 반환하면 type은 None"""
+    mock = AsyncMock()
+    mock.find_path_by_uuid.return_value = _UUID
     mock.get_page_by_path.side_effect = lambda path, locale: (
         _page(locale, path=_UUID) if locale == "en" else None
     )
@@ -108,6 +128,21 @@ def test_by_uuid_without_type():
         data = resp.json()
         assert data["type"] is None
         mock.get_page_by_path.assert_any_call(_UUID, "en")
+    finally:
+        _teardown()
+
+
+def test_by_uuid_without_type_search_not_found():
+    """type 생략 + search 결과 없음 → bare uuid 시도 → PAGE_NOT_FOUND"""
+    mock = AsyncMock()
+    mock.find_path_by_uuid.return_value = None
+    mock.get_page_by_path.return_value = None
+    client = _setup(mock)
+    try:
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
+        assert resp.status_code == 404
+        assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
+        assert resp.json()["detail"]["uuid"] == _UUID
     finally:
         _teardown()
 
