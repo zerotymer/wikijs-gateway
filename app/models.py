@@ -119,3 +119,37 @@ class SearchResponse(BaseModel):
     results: list[SearchResultItem]
     suggestions: list[str]
     totalHits: int
+
+
+# ---- Bulk fetch ----
+
+class PathItem(BaseModel):
+    path: str
+    locale: str = ""
+
+
+class BulkFetchRequest(BaseModel):
+    paths: list[PathItem]
+
+
+class BulkFetchItem(BaseModel):
+    index: int
+    path: str
+    ok: bool
+    page: PageResponse | None = None
+    error: str | None = None
+
+
+class BulkFetchResponse(BaseModel):
+    ok: bool
+    results: list[BulkFetchItem]
+    summary: dict
+
+
+# ---- By UUID ----
+
+class PageByUuidResponse(BaseModel):
+    uuid: str
+    type: str | None
+    pages: dict[str, PageResponse | None]  # {"en": PageResponse, "ko": None}
+

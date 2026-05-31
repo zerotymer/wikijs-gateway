@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
@@ -6,7 +7,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from app.audit import AuditRecord, write_audit
-from app.auth import verify_token
+from app.auth import verify_admin_token, verify_token
 from app.config import GatewayMode, Settings, get_settings
 from app.locking import compute_hash, verify_hash
 from app.markdown_patch import (
@@ -18,11 +19,16 @@ from app.markdown_patch import (
     replace_section,
 )
 from app.models import (
+    BulkFetchItem,
+    BulkFetchRequest,
+    BulkFetchResponse,
     DryRunRequest,
     DryRunResponse,
     HealthResponse,
+    PageByUuidResponse,
     PageChangedResponse,
     PageResponse,
+    PathItem,
     PatchOperation,
     PatchSectionRequest,
     PatchSectionResponse,
@@ -36,7 +42,11 @@ from app.wikijs_client import WikiJsClient, WikiJsError
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
-    client = WikiJsClient(settings.wikijs_graphql_url, settings.wikijs_api_token)
+    client = WikiJsClient(
+        settings.wikijs_graphql_url,
+        settings.wikijs_api_token,
+        admin_api_token=settings.wikijs_admin_api_token,
+    )
     app.state.wikijs_client = client
     yield
     await client.aclose()
@@ -87,6 +97,35 @@ async def get_page_by_path(
     return page
 
 
+_UUID_LOCALES = ["en", "ko"]
+
+
+@app.get("/pages/by-uuid", response_model=PageByUuidResponse, dependencies=[Depends(verify_token)])
+async def get_page_by_uuid(
+    uuid: str,
+    type: str = "",
+    client: WikiJsClient = Depends(get_wikijs_client),
+) -> PageByUuidResponse:
+    path = f"{type}/{uuid}" if type else uuid
+    results = await asyncio.gather(
+        *[client.get_page_by_path(path, locale) for locale in _UUID_LOCALES],
+        return_exceptions=True,
+    )
+
+    pages: dict[str, PageResponse | None] = {}
+    for locale, result in zip(_UUID_LOCALES, results):
+        if isinstance(result, WikiJsError):
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": result.errors})
+        if isinstance(result, Exception):
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(result)})
+        pages[locale] = result
+
+    if all(p is None for p in pages.values()):
+        raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "uuid": uuid})
+
+    return PageByUuidResponse(uuid=uuid, type=type or None, pages=pages)
+
+
 @app.get("/pages/search", response_model=SearchResponse, dependencies=[Depends(verify_token)])
 async def search_pages(
     query: str,
@@ -115,7 +154,7 @@ async def search_pages(
 
 @app.post(
     "/pages/dry-run",
-    dependencies=[Depends(verify_token)],
+    dependencies=[Depends(verify_admin_token)],
     responses={403: {"model": PageChangedResponse}},
 )
 async def dry_run_patch(
@@ -194,7 +233,7 @@ def _apply_patch(content: str, op: PatchOperation) -> str:
 
 @app.post(
     "/pages/patch-section",
-    dependencies=[Depends(verify_token)],
+    dependencies=[Depends(verify_admin_token)],
     responses={403: {"model": PageChangedResponse}},
 )
 async def patch_section(
@@ -264,7 +303,65 @@ async def patch_section(
     )
 
 
-@app.post("/pages/upsert", dependencies=[Depends(verify_token)])
+async def _run_batch(tasks: list, concurrency: int) -> list:
+    sem = asyncio.Semaphore(concurrency)
+
+    async def with_sem(coro):
+        async with sem:
+            return await coro
+
+    return await asyncio.gather(*[with_sem(t) for t in tasks], return_exceptions=True)
+
+
+async def _handle_fetch_item(
+    index: int, item: PathItem, settings: Settings, client: WikiJsClient
+) -> BulkFetchItem:
+    effective_locale = item.locale or settings.default_locale
+    try:
+        page = await client.get_page_by_path(item.path, effective_locale)
+    except Exception:
+        return BulkFetchItem(index=index, path=item.path, ok=False, error="WIKIJS_ERROR")
+    if page is None:
+        return BulkFetchItem(index=index, path=item.path, ok=False, error="PAGE_NOT_FOUND")
+    return BulkFetchItem(index=index, path=item.path, ok=True, page=page)
+
+
+@app.post("/pages/by-paths", response_model=BulkFetchResponse, dependencies=[Depends(verify_token)])
+async def bulk_fetch_pages(
+    body: BulkFetchRequest,
+    settings: Settings = Depends(get_settings),
+    client: WikiJsClient = Depends(get_wikijs_client),
+) -> BulkFetchResponse:
+    if len(body.paths) > settings.batch_max_size:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "BATCH_TOO_LARGE",
+                "message": f"최대 {settings.batch_max_size}개까지 처리할 수 있습니다.",
+                "received": len(body.paths),
+                "limit": settings.batch_max_size,
+            },
+        )
+
+    tasks = [_handle_fetch_item(i, item, settings, client) for i, item in enumerate(body.paths)]
+    raw_results = await _run_batch(tasks, settings.batch_concurrency)
+
+    fetch_results: list[BulkFetchItem] = []
+    for i, result in enumerate(raw_results):
+        if isinstance(result, Exception):
+            fetch_results.append(BulkFetchItem(index=i, path=body.paths[i].path, ok=False, error="INTERNAL_ERROR"))
+        else:
+            fetch_results.append(result)
+
+    succeeded = sum(1 for r in fetch_results if r.ok)
+    return BulkFetchResponse(
+        ok=True,
+        results=fetch_results,
+        summary={"total": len(fetch_results), "succeeded": succeeded, "failed": len(fetch_results) - succeeded},
+    )
+
+
+@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)])
 async def upsert_page(
     body: UpsertRequest,
     settings: Settings = Depends(get_settings),

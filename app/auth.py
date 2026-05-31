@@ -14,3 +14,13 @@ def verify_token(
         raise HTTPException(status_code=401, detail="Authorization header missing")
     if credentials.credentials != settings.gateway_token:
         raise HTTPException(status_code=403, detail="Invalid token")
+
+
+def verify_admin_token(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    if credentials.credentials != settings.gateway_admin_token:
+        raise HTTPException(status_code=403, detail="Invalid token")
