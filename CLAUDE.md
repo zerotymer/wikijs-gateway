@@ -162,6 +162,41 @@ docker compose \
 Gateway는 초기에 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정하지 않는다.
 
 ---
+## Instructions 워크플로우
+
+모든 구현 작업은 `instructions/` 아래 지침 파일을 기준으로 진행한다.
+
+### 지침 파일 생성
+
+1. UUID 발급: `python3 -c "import uuid; print(uuid.uuid4())"`
+2. `instructions/{slug}.md` 생성 — frontmatter에 uuid, title, status, created 기록
+3. `instructions/instructions.log`에 한 줄 추가:
+   ```
+   {uuid} | {title} | {ISO8601 timestamp} | created
+   ```
+4. **브랜치 전략 스킬 필수 실행** — 스킬 `e03f48fb-3e00-41d7-b99d-c32854567d67`로 작업 브랜치를 생성한다.
+
+### 지침 완료 처리
+
+모든 단계 완료 시:
+
+1. frontmatter `status: completed`, `completed: {날짜}` 기록
+2. `instructions/.completed/{uuid}.md`로 이동
+3. `instructions/instructions.log`에 `completed` 이벤트 추가
+4. git commit
+
+### 현재 지침
+
+> 완료 지침은 최근 3건만 표시. 전체 이력은 `instructions/instructions.log` 참고.
+
+| UUID | 파일 | 상태 |
+|------|------|------|
+| `0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001` | [step1-foundation.md](instructions/step1-foundation.md) | active |
+| `0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002` | [step2-wikijs-client-read.md](instructions/step2-wikijs-client-read.md) | active |
+| `0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003` | [step3-markdown-patch-dryrun.md](instructions/step3-markdown-patch-dryrun.md) | active |
+| `0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004` | [step4-audit-write.md](instructions/step4-audit-write.md) | active |
+| `0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005` | [step5-docker-deploy.md](instructions/step5-docker-deploy.md) | active |
+
 
 ## 개발 규칙
 
@@ -179,7 +214,18 @@ Gateway는 초기에 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service�
 - `test_locking.py`: hash 계산 및 충돌 감지 유닛 테스트.
 - Wiki.js GraphQL 호출이 필요한 통합 테스트는 `httpx.AsyncClient` + `respx` mock 사용.
 
-## 브랜치 전략
+## Git Branch 전략
 
-- `main`에 직접 push 금지 (전역 규칙).
-- feature/fix 브랜치 → PR → merge.
+Step별 `feat/step{N}-{slug}` 브랜치 → PR → main 머지.
+
+브랜치 전략 스킬: `e03f48fb-3e00-41d7-b99d-c32854567d67`
+
+## LLM-wiki 스킬 참조
+
+작업 완료 보고 및 리뷰 시 아래 스킬을 활용한다.
+
+| UUID | 용도 |
+|------|------|
+| `a43a68f9-fda2-4960-a49a-0a97ebf96a8a` | 백엔드/인프라 완료 보고 |
+| `69a9089b-a444-4f44-89ab-5d58210906ae` | PR 템플릿 |
+| `ed847c29-b20a-420b-9314-c16dce184d62` | 코드 리뷰 |
