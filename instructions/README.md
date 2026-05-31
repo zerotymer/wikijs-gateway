@@ -2,7 +2,7 @@
 
 wikijs-gateway 구현 지침 파일 모음.
 
-> **현재 상태**: Step 1~5 모두 구현 완료. 운영 배포 가능.
+> **현재 상태**: Step 1~8 모두 구현 완료. 운영 배포 가능.
 
 ---
 
@@ -44,6 +44,9 @@ updated: YYYY-MM-DD
 | 3 | `feat/step3-markdown-patch-dryrun` | `markdown_patch.py`, `locking.py`, `POST /pages/dry-run`, 유닛 테스트 | ✅ 완료 |
 | 4 | `feat/step4-audit-write` | `audit.py`, `POST /pages/patch-section`, `POST /pages/upsert` | ✅ 완료 |
 | 5 | `feat/step5-docker-deploy` | 독립 Docker 배포 + Security Checklist + 운영 검증 | ✅ 완료 |
+| 6 | `feat/step6-search` | `GET /pages/search` | ✅ 완료 |
+| 7 | `feat/step7-bulk-api` | `POST /pages/by-paths` 다건 조회 배치 API | ✅ 완료 |
+| 8 | `feat/step8-auth-roles` | `GET /pages/by-uuid`, 읽기/쓰기 인증 분리 (`GATEWAY_ADMIN_TOKEN`) | ✅ 완료 |
 
 전체 이력: `instructions/instructions.log` 참고.  
 완료된 지침 파일: `instructions/.completed/`

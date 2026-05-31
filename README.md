@@ -19,7 +19,7 @@ AI agent, MCP 서버, CLI, 자동화 프로세스가 PostgreSQL·Git storage·Wi
 ```
 Agent / MCP Client / CLI
         │
-        │  HTTP + GATEWAY_TOKEN
+        │  HTTP (읽기: 인증없음 / 쓰기: GATEWAY_ADMIN_TOKEN 필요)
         ▼
 wikijs-agent-gateway  (이 서비스, :8088)
         │
@@ -42,25 +42,18 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 
 ## API 엔드포인트
 
-| Method | Path | 설명 |
-|---|---|---|
-| `GET` | `/health` | 서비스 상태 + wikijsReachable |
-| `GET` | `/pages/by-path` | path + locale로 page 조회 |
-| `POST` | `/pages/dry-run` | patch diff만 반환, 실제 쓰기 없음 |
-| `POST` | `/pages/patch-section` | section 단위 patch (write 모드) |
-| `POST` | `/pages/upsert` | page 생성/수정 (allowlist 경로만) |
+| Method | Path | 인증 | 설명 |
+|---|---|---|---|
+| `GET` | `/health` | 없음 | 서비스 상태 + wikijsReachable |
+| `GET` | `/pages/by-path` | 없음 | path + locale로 page 조회 |
+| `GET` | `/pages/by-uuid` | 없음 | UUID로 en+ko 동시 조회 |
+| `GET` | `/pages/search` | 없음 | 키워드 검색 |
+| `POST` | `/pages/by-paths` | 없음 | 다건 page 조회 |
+| `POST` | `/pages/dry-run` | GATEWAY_ADMIN_TOKEN | patch diff만 반환, 실제 쓰기 없음 |
+| `POST` | `/pages/patch-section` | GATEWAY_ADMIN_TOKEN | section 단위 patch |
+| `POST` | `/pages/upsert` | GATEWAY_ADMIN_TOKEN | page 생성/수정 |
 
-모든 요청은 `Authorization: Bearer <GATEWAY_TOKEN>` 헤더 필요.
-
-## Gateway 모드
-
-| 모드 | `GATEWAY_MODE` | 기본 |
-|---|---|---|
-| Read-only | `read_only` | |
-| Dry-run | `dry_run` | ✅ |
-| Write | `write` | |
-
-기본값은 `dry_run`. `write`는 명시적으로 설정해야 활성화.
+쓰기 엔드포인트는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
 
 ## 빠른 시작
 
@@ -73,8 +66,7 @@ cp .env.example .env
 docker compose -f docker-compose.gateway.yml up -d --build
 
 # 3. 헬스 체크
-curl -H "Authorization: Bearer $GATEWAY_TOKEN" \
-  http://127.0.0.1:8088/health
+curl http://127.0.0.1:8088/health
 
 # 4. 로그 확인
 docker compose -f docker-compose.gateway.yml logs -f
@@ -85,11 +77,8 @@ docker compose -f docker-compose.gateway.yml logs -f
 | 변수 | 필수 | 설명 |
 |---|---|---|
 | `WIKIJS_GRAPHQL_URL` | ✅ | Wiki.js GraphQL endpoint (예: `http://192.168.28.10:23000/graphql`) |
-| `WIKIJS_API_TOKEN` | ✅ | Wiki.js API token (grp:3 Users 이상 필요) |
-| `GATEWAY_TOKEN` | ✅ | Agent용 bearer token |
-| `GATEWAY_MODE` | ✅ | `read_only` \| `dry_run` \| `write` |
-| `DEFAULT_LOCALE` | ✅ | 기본 locale (예: `ko`) |
-| `ALLOW_PATH_PREFIXES` | ✅ | 쓰기 허용 경로 (`,` 구분, 예: `/agent,/draft`) |
+| `WIKIJS_API_TOKEN` | ✅ | Wiki.js API token (read:pages, read:source, write:pages 권한 필요) |
+| `GATEWAY_ADMIN_TOKEN` | ✅ | 쓰기 엔드포인트 인증용 bearer token |
 | `AUDIT_DIR` | ❌ | audit log 디렉터리 (기본: `/audit`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 render 호출 여부 (기본: `false`) |
 

@@ -14,7 +14,7 @@ AI agent, MCP 서버, CLI, 자동화 프로세스가 PostgreSQL·Git storage·Wi
 ```
 Agent / MCP Client / CLI
         │
-        │  HTTP + GATEWAY_TOKEN
+        │  HTTP (읽기: 인증없음 / 쓰기: GATEWAY_ADMIN_TOKEN 필요)
         ▼
 wikijs-agent-gateway  (이 서비스)
         │
@@ -45,14 +45,14 @@ Gateway는 reverse proxy가 아닌 **애플리케이션 레벨 안전 proxy**다
 
 ## 프로젝트 구조
 
-> **현재 상태**: Step 1~5 구현 완료. 운영 배포 가능.
+> **현재 상태**: Step 1~8 구현 완료. 운영 배포 가능.
 
 ```
 wikijs-agent-gateway/
   app/
     main.py           # FastAPI app, 라우터 등록
     config.py         # 환경 변수 로드 (pydantic Settings)
-    auth.py           # GATEWAY_TOKEN 검증 미들웨어
+    auth.py           # GATEWAY_ADMIN_TOKEN 검증 (쓰기 엔드포인트 전용)
     wikijs_client.py  # httpx 기반 GraphQL 클라이언트
     markdown_patch.py # append_under_heading / replace_between_markers / replace_section
     locking.py        # optimistic lock (sha256 hash 계산·검증)
@@ -62,6 +62,9 @@ wikijs-agent-gateway/
     test_health.py
     test_pages_by_path.py
     test_routes_write.py
+    test_routes_search.py
+    test_routes_by_uuid.py
+    test_routes_bulk.py
     test_wikijs_client.py
     test_markdown_patch.py
     test_locking.py
@@ -87,32 +90,20 @@ wikijs-agent-gateway/
 
 ---
 
-## Gateway 모드
-
-| 모드 | ENV | 허용 | 차단 |
-|---|---|---|---|
-| `read_only` | `GATEWAY_MODE=read_only` | health, page read, **search** | create, update, render |
-| `dry_run` | `GATEWAY_MODE=dry_run` | read + patch 계산 + diff 반환 | 실제 Wiki.js mutation |
-| `write` | `GATEWAY_MODE=write` | ALLOW_PATH_PREFIXES 내 create/update | 그 외 경로 쓰기 |
-
-**기본값은 `dry_run`**. `write`는 명시적으로 설정해야만 활성화된다.
-
----
-
 ## API 엔드포인트 요약
 
-| Method | Path | 설명 |
-|---|---|---|
-| `GET` | `/health` | 서비스 상태 + wikijsReachable |
-| `GET` | `/pages/by-path` | path + locale로 page 조회 |
-| `GET` | `/pages/search` | 키워드 검색 (read_only 포함 전 모드) |
-| `POST` | `/pages/dry-run` | patch diff만 반환, 실제 쓰기 없음 |
-| `POST` | `/pages/patch-section` | section 단위 patch (write 모드에서만 실행) |
-| `POST` | `/pages/upsert` | page 생성/수정 (allowlist 경로만) |
-| `POST` | `/pages/by-paths` | 다건 page 조회 (전 모드, 최대 BATCH_MAX_SIZE) |
-| `POST` | `/pages/bulk` | 혼합 배치 작업 (upsert/patch-section/dry-run 항목 배열) |
+| Method | Path | 인증 | 설명 |
+|---|---|---|---|
+| `GET` | `/health` | 없음 | 서비스 상태 + wikijsReachable |
+| `GET` | `/pages/by-path` | 없음 | path + locale로 page 조회 |
+| `GET` | `/pages/by-uuid` | 없음 | UUID로 en+ko 동시 조회 |
+| `GET` | `/pages/search` | 없음 | 키워드 검색 |
+| `POST` | `/pages/by-paths` | 없음 | 다건 page 조회 (최대 BATCH_MAX_SIZE) |
+| `POST` | `/pages/dry-run` | GATEWAY_ADMIN_TOKEN | patch diff만 반환, 실제 쓰기 없음 |
+| `POST` | `/pages/patch-section` | GATEWAY_ADMIN_TOKEN | section 단위 patch |
+| `POST` | `/pages/upsert` | GATEWAY_ADMIN_TOKEN | page 생성/수정 |
 
-모든 요청은 `Authorization: Bearer <GATEWAY_TOKEN>` 헤더 필요.
+쓰기 엔드포인트(`dry-run`, `patch-section`, `upsert`)는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
 
 ---
 
@@ -122,10 +113,7 @@ wikijs-agent-gateway/
 |---|---|---|
 | `WIKIJS_GRAPHQL_URL` | ✅ | 내부 Wiki.js GraphQL endpoint (예: `http://wiki:3000/graphql`) |
 | `WIKIJS_API_TOKEN` | ✅ | Wiki.js 전용 API token |
-| `GATEWAY_TOKEN` | ✅ | Agent가 gateway 호출 시 사용하는 bearer token |
-| `GATEWAY_MODE` | ✅ | `read_only` \| `dry_run` \| `write` |
-| `DEFAULT_LOCALE` | ✅ | 기본 locale (예: `ko`) |
-| `ALLOW_PATH_PREFIXES` | ✅ | 쓰기 허용 경로 목록 (`,` 구분, 예: `/agent,/draft,/ops/runbook`) |
+| `GATEWAY_ADMIN_TOKEN` | ✅ | 쓰기 엔드포인트 인증용 bearer token |
 | `AUDIT_DIR` | ❌ | patch log 저장 디렉터리 (기본: `/audit`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 `pages.render` 호출 여부 (기본: `false`) |
 
@@ -219,8 +207,7 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 
 ## 개발 규칙
 
-- 모든 쓰기 경로는 `GATEWAY_MODE` 검사를 통과해야 한다.
-- Path allowlist(`ALLOW_PATH_PREFIXES`) 검증 없이 write mutation을 호출하는 코드는 작성하지 않는다.
+- 모든 쓰기 엔드포인트(`dry-run`, `patch-section`, `upsert`)는 `verify_admin_token` 의존성을 달아야 한다.
 - Gateway는 PostgreSQL에 직접 접근하지 않는다. GraphQL만 사용.
 - Git repository에 직접 쓰지 않는다.
 - Docker socket을 mount하지 않는다.
