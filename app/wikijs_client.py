@@ -283,6 +283,15 @@ class WikiJsClient:
             raise WikiJsError(errors)
         return body["data"]["pages"]["search"]
 
+    async def find_path_by_uuid(self, uuid: str) -> str | None:
+        """Search for a page path whose last segment equals the given UUID."""
+        data = await self.search_pages(uuid)
+        for item in (data.get("results") or []):
+            path = item.get("path", "")
+            if path == uuid or path.endswith(f"/{uuid}"):
+                return path
+        return None
+
     async def ping(self) -> bool:
         try:
             resp = await self._client.post(

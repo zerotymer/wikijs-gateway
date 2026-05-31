@@ -98,7 +98,23 @@ async def get_page_by_uuid(
     type: str = "",
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> PageByUuidResponse:
-    path = f"{type}/{uuid}" if type else uuid
+    if type:
+        path = f"{type}/{uuid}"
+        resolved_type: str | None = type
+    else:
+        try:
+            found = await client.find_path_by_uuid(uuid)
+        except WikiJsError as exc:
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
+        if found is not None and found != uuid:
+            path = found
+            resolved_type = found[: -(len(uuid) + 1)]  # strip trailing "/{uuid}" to get prefix
+        else:
+            path = found or uuid
+            resolved_type = None
+
     results = await asyncio.gather(
         *[client.get_page_by_path(path, locale) for locale in _UUID_LOCALES],
         return_exceptions=True,
@@ -115,7 +131,7 @@ async def get_page_by_uuid(
     if all(p is None for p in pages.values()):
         raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "uuid": uuid})
 
-    return PageByUuidResponse(uuid=uuid, type=type or None, pages=pages)
+    return PageByUuidResponse(uuid=uuid, type=resolved_type, pages=pages)
 
 
 @app.get("/pages/search", response_model=SearchResponse)
