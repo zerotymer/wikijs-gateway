@@ -102,3 +102,20 @@ class UpsertResponse(BaseModel):
     created: bool
     pageId: int
     path: str
+
+
+class SearchResultItem(BaseModel):
+    id: int
+    path: str
+    title: str
+    description: str
+    locale: str
+    updatedAt: str
+
+
+class SearchResponse(BaseModel):
+    ok: bool
+    query: str
+    results: list[SearchResultItem]
+    suggestions: list[str]
+    totalHits: int
