@@ -6,3 +6,4 @@
 2026-05-31 | completed | step3-markdown-patch-dryrun | 0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003 | Step 3: Markdown Patch 로직 + Dry-run 엔드포인트
 2026-05-31 | created | step4-audit-write         | 0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004 | Step 4: Audit Log + Write 엔드포인트
 2026-05-31 | created | step5-docker-deploy       | 0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005 | Step 5: Docker 통합 배포 + 운영 검증
+0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004 | Step 4: Audit Log + Write 엔드포인트 | 2026-05-31T00:00:00Z | completed

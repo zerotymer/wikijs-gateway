@@ -17,6 +17,72 @@ query GetPageByPath($path: String!, $locale: String!) {
 
 _QUERY_PING = "{ pages { list(limit: 1) { id } } }"
 
+_MUTATION_UPDATE_PAGE = """
+mutation UpdatePage(
+  $id: Int!
+  $content: String!
+  $title: String
+  $description: String
+  $editor: String
+  $locale: String
+  $isPublished: Boolean
+  $isPrivate: Boolean
+  $tags: [String]
+  $scriptCss: String
+  $scriptJs: String
+) {
+  pages {
+    update(
+      id: $id
+      content: $content
+      title: $title
+      description: $description
+      editor: $editor
+      locale: $locale
+      isPublished: $isPublished
+      isPrivate: $isPrivate
+      tags: $tags
+      scriptCss: $scriptCss
+      scriptJs: $scriptJs
+    ) {
+      responseResult { succeeded errorCode message }
+      page { id path title updatedAt }
+    }
+  }
+}
+"""
+
+_MUTATION_CREATE_PAGE = """
+mutation CreatePage(
+  $content: String!
+  $description: String!
+  $editor: String!
+  $isPublished: Boolean!
+  $isPrivate: Boolean!
+  $locale: String!
+  $path: String!
+  $tags: [String]!
+  $title: String!
+) {
+  pages {
+    create(
+      content: $content
+      description: $description
+      editor: $editor
+      isPublished: $isPublished
+      isPrivate: $isPrivate
+      locale: $locale
+      path: $path
+      tags: $tags
+      title: $title
+    ) {
+      responseResult { succeeded errorCode message }
+      page { id path title updatedAt }
+    }
+  }
+}
+"""
+
 
 class WikiJsError(Exception):
     def __init__(self, errors: list[dict]) -> None:
@@ -65,6 +131,111 @@ class WikiJsClient:
             scriptCss=page.get("scriptCss"),
             scriptJs=page.get("scriptJs"),
         )
+
+    async def update_page(self, page: PageResponse, content: str, metadata_overrides: dict | None = None) -> dict:
+        overrides = metadata_overrides or {}
+        variables = {
+            "id": page.id,
+            "content": content,
+            "title": overrides.get("title", page.title),
+            "description": overrides.get("description", page.description),
+            "editor": overrides.get("editor", page.editor),
+            "locale": overrides.get("locale", page.locale),
+            "isPublished": overrides.get("isPublished", page.isPublished),
+            "isPrivate": overrides.get("isPrivate", page.isPrivate),
+            "tags": overrides.get("tags", page.tags),
+            "scriptCss": overrides.get("scriptCss", page.scriptCss),
+            "scriptJs": overrides.get("scriptJs", page.scriptJs),
+        }
+        resp = await self._client.post(
+            self._graphql_url,
+            json={"query": _MUTATION_UPDATE_PAGE, "variables": variables},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if errors := body.get("errors"):
+            raise WikiJsError(errors)
+        result = body["data"]["pages"]["update"]
+        if not result["responseResult"]["succeeded"]:
+            raise WikiJsError([result["responseResult"]])
+        return result
+
+    async def create_page(
+        self,
+        path: str,
+        locale: str,
+        title: str,
+        description: str,
+        content: str,
+        editor: str = "markdown",
+        is_published: bool = True,
+        is_private: bool = False,
+        tags: list[str] | None = None,
+    ) -> dict:
+        variables = {
+            "path": path,
+            "locale": locale,
+            "title": title,
+            "description": description,
+            "content": content,
+            "editor": editor,
+            "isPublished": is_published,
+            "isPrivate": is_private,
+            "tags": tags or [],
+        }
+        resp = await self._client.post(
+            self._graphql_url,
+            json={"query": _MUTATION_CREATE_PAGE, "variables": variables},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if errors := body.get("errors"):
+            raise WikiJsError(errors)
+        result = body["data"]["pages"]["create"]
+        if not result["responseResult"]["succeeded"]:
+            raise WikiJsError([result["responseResult"]])
+        return result
+
+    async def upsert_page(
+        self,
+        path: str,
+        locale: str,
+        title: str,
+        description: str,
+        content: str,
+        editor: str = "markdown",
+        is_published: bool = True,
+        is_private: bool = False,
+        tags: list[str] | None = None,
+    ) -> tuple[dict, bool]:
+        existing = await self.get_page_by_path(path, locale)
+        if existing is not None:
+            result = await self.update_page(
+                existing,
+                content,
+                metadata_overrides={
+                    "title": title,
+                    "description": description,
+                    "editor": editor,
+                    "isPublished": is_published,
+                    "isPrivate": is_private,
+                    "tags": tags or [],
+                },
+            )
+            return result, False
+        else:
+            result = await self.create_page(
+                path=path,
+                locale=locale,
+                title=title,
+                description=description,
+                content=content,
+                editor=editor,
+                is_published=is_published,
+                is_private=is_private,
+                tags=tags,
+            )
+            return result, True
 
     async def ping(self) -> bool:
         try:

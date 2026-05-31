@@ -69,6 +69,36 @@ class PageChangedResponse(BaseModel):
     currentHash: str
 
 
-# --- Step 4: Upsert stubs ---
-# class UpsertPageRequest(BaseModel): ...
-# class UpsertPageResponse(BaseModel): ...
+class PatchSectionRequest(BaseModel):
+    path: str
+    locale: str = ""
+    baseHash: str
+    operation: PatchOperation
+
+
+class PatchSectionResponse(BaseModel):
+    ok: bool
+    mode: GatewayMode
+    changed: bool
+    diff: str
+    newHash: str
+    pageId: int
+
+
+class UpsertRequest(BaseModel):
+    path: str
+    locale: str = ""
+    title: str
+    description: str = ""
+    content: str
+    editor: str = "markdown"
+    isPublished: bool = True
+    isPrivate: bool = False
+    tags: list[str] = []
+
+
+class UpsertResponse(BaseModel):
+    ok: bool
+    created: bool
+    pageId: int
+    path: str
