@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     allow_path_prefixes: Annotated[list[str], NoDecode] = Field(default=["/agent", "/draft"])
     audit_dir: str = "/audit"
     render_after_write: bool = False
+    batch_max_size: int = 50
+    batch_concurrency: int = 10
 
     @field_validator("allow_path_prefixes", mode="before")
     @classmethod

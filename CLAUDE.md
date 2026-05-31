@@ -70,8 +70,20 @@ wikijs-agent-gateway/
   requirements.txt
   docker-compose.gateway.yml  # 독립 실행 (base compose 불필요)
   .env.example                # 실제 .env는 커밋 금지
-  output/                     # 보고서, API 명세, SKILL 파일
+  output/                     # 최종 산출물 — 커밋 대상 (API 명세, SKILL 파일 등)
+  .output/                    # 임시 산출물 — gitignore 대상 (빌드 중간 파일 등)
 ```
+
+### output 폴더 정책
+
+| 폴더 | 용도 | git |
+|------|------|-----|
+| `output/` | 최종 산출물 (API 명세, 스킬 파일, 완료 보고서) | **커밋** |
+| `.output/` | 임시·중간 산출물 (초안, 빌드 artifact) | gitignore |
+
+**스킬 파일 유지 규칙**: API 변경 시 항상 두 파일을 함께 업데이트한다.
+- `output/wikijs-gateway-skill.md` — 영어 원문 (정본)
+- `output/wikijs-gateway-skill_ko.md` — 한국어 번역본
 
 ---
 
@@ -79,7 +91,7 @@ wikijs-agent-gateway/
 
 | 모드 | ENV | 허용 | 차단 |
 |---|---|---|---|
-| `read_only` | `GATEWAY_MODE=read_only` | health, page read, search | create, update, render |
+| `read_only` | `GATEWAY_MODE=read_only` | health, page read, **search** | create, update, render |
 | `dry_run` | `GATEWAY_MODE=dry_run` | read + patch 계산 + diff 반환 | 실제 Wiki.js mutation |
 | `write` | `GATEWAY_MODE=write` | ALLOW_PATH_PREFIXES 내 create/update | 그 외 경로 쓰기 |
 
@@ -93,9 +105,12 @@ wikijs-agent-gateway/
 |---|---|---|
 | `GET` | `/health` | 서비스 상태 + wikijsReachable |
 | `GET` | `/pages/by-path` | path + locale로 page 조회 |
+| `GET` | `/pages/search` | 키워드 검색 (read_only 포함 전 모드) |
 | `POST` | `/pages/dry-run` | patch diff만 반환, 실제 쓰기 없음 |
 | `POST` | `/pages/patch-section` | section 단위 patch (write 모드에서만 실행) |
 | `POST` | `/pages/upsert` | page 생성/수정 (allowlist 경로만) |
+| `POST` | `/pages/by-paths` | 다건 page 조회 (전 모드, 최대 BATCH_MAX_SIZE) |
+| `POST` | `/pages/bulk` | 혼합 배치 작업 (upsert/patch-section/dry-run 항목 배열) |
 
 모든 요청은 `Authorization: Bearer <GATEWAY_TOKEN>` 헤더 필요.
 
@@ -197,11 +212,9 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 
 | UUID | 파일 | 상태 |
 |------|------|------|
-| `0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001` | [step1-foundation.md](instructions/.completed/0196f8e0-0001-7b3e-9c2f-1d5e8a7f0001.md) | completed |
-| `0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002` | [step2-wikijs-client-read.md](instructions/.completed/0196f8e0-0002-7b3e-9c2f-1d5e8a7f0002.md) | completed |
-| `0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003` | [step3-markdown-patch-dryrun.md](instructions/.completed/0196f8e0-0003-7b3e-9c2f-1d5e8a7f0003.md) | completed |
-| `0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004` | [step4-audit-write.md](instructions/.completed/0196f8e0-0004-7b3e-9c2f-1d5e8a7f0004.md) | completed |
-| `0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005` | [step5-docker-deploy.md](instructions/.completed/0196f8e0-0005-7b3e-9c2f-1d5e8a7f0005.md) | completed |
+| `c5ff90a6-6359-497c-8404-ccfe27bf5580` | [step6-search.md](instructions/.completed/c5ff90a6-6359-497c-8404-ccfe27bf5580.md) | completed |
+| `b60f3f2e-8002-44f2-8960-b417c803331e` | [step7-bulk-api.md](instructions/.completed/b60f3f2e-8002-44f2-8960-b417c803331e.md) | completed |
+| `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/step8-auth-roles.md) | pending |
 
 
 ## 개발 규칙

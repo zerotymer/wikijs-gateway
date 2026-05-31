@@ -1,10 +1,10 @@
 ---
 name: wikijs-gateway
 description: |
-  wikijs-agent-gateway를 통해 Wiki.js 페이지를 읽고, 수정하고, 생성하는 스킬.
+  wikijs-agent-gateway를 통해 Wiki.js 페이지를 읽고, 검색하고, 수정하고, 생성하고, 배치 처리하는 스킬.
   Gateway 엔드포인트(http://127.0.0.1:8088)와 GATEWAY_TOKEN을 사용한다.
-  Optimistic locking (baseHash) 처리, Patch operation 선택, Upsert 흐름을 안내한다.
-version: "1.0"
+  Optimistic locking (baseHash) 처리, Patch operation 선택, 검색, Upsert, 배치(Bulk) 흐름을 안내한다.
+version: "1.2"
 updated: "2026-05-31"
 ---
 
@@ -71,7 +71,46 @@ base_hash = page["contentHash"]
 
 ---
 
-## 3. Dry-run (변경 미리보기)
+## 3. 페이지 검색
+
+`read_only`를 포함한 모든 모드에서 사용 가능.
+
+```bash
+curl -s -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  "$GATEWAY_URL/pages/search?query=배포&locale=ko&limit=10" | jq .
+```
+
+**쿼리 파라미터**
+
+| 파라미터 | 필수 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | ✅ | — | 검색 키워드 |
+| `locale` | ❌ | DEFAULT_LOCALE | locale 필터 |
+| `limit` | ❌ | 20 | 최대 결과 수 |
+
+**응답 예시**
+```json
+{
+  "ok": true,
+  "query": "배포",
+  "results": [
+    {
+      "id": 42,
+      "path": "agent/deploy-log",
+      "title": "배포 로그",
+      "description": "자동화 배포 기록",
+      "locale": "ko",
+      "updatedAt": "2026-05-31T10:00:00Z"
+    }
+  ],
+  "suggestions": [],
+  "totalHits": 1
+}
+```
+
+---
+
+## 4. Dry-run (변경 미리보기)
 
 실제로 쓰지 않고 diff를 확인한다. `dry_run` 또는 `write` 모드에서 사용 가능.
 
@@ -103,7 +142,7 @@ curl -s -X POST $GATEWAY_URL/pages/dry-run \
 
 ---
 
-## 4. 실제 Section Patch
+## 5. 실제 Section Patch
 
 `GATEWAY_MODE=write` 환경에서만 Wiki.js에 실제 반영된다.  
 `dry_run` 모드에서 호출하면 diff만 반환하고 쓰지 않는다.
@@ -137,7 +176,7 @@ if not result.get("ok") and result.get("error") == "PAGE_CHANGED":
 
 ---
 
-## 5. 페이지 생성/수정 (Upsert)
+## 6. 페이지 생성/수정 (Upsert)
 
 `write` 모드 전용. 경로가 없으면 생성, 있으면 전체 갱신.
 
@@ -166,7 +205,7 @@ curl -s -X POST $GATEWAY_URL/pages/upsert \
 
 ---
 
-## 6. Patch Operation 선택 가이드
+## 7. Patch Operation 선택 가이드
 
 | 상황 | 권장 operation |
 |------|--------------|
@@ -188,7 +227,7 @@ Wiki.js 페이지 Markdown 내에 아래 형식의 마커를 삽입한다:
 
 ---
 
-## 7. 에러 코드 빠른 참조
+## 8. 에러 코드 빠른 참조
 
 | error 코드 | 원인 | 대응 |
 |-----------|------|------|
@@ -201,7 +240,99 @@ Wiki.js 페이지 Markdown 내에 아래 형식의 마커를 삽입한다:
 
 ---
 
-## 8. 전체 흐름 예시 (Python)
+## 7. 다건 페이지 조회 (Bulk Fetch)
+
+한 번의 요청으로 여러 페이지를 가져온다. 모든 모드에서 사용 가능.
+
+```bash
+curl -s -X POST $GATEWAY_URL/pages/by-paths \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paths": [
+      {"path": "/agent/page1", "locale": "ko"},
+      {"path": "/agent/page2"}
+    ]
+  }' | jq .
+```
+
+**응답 예시**
+```json
+{
+  "ok": true,
+  "results": [
+    {"index": 0, "path": "/agent/page1", "ok": true, "page": {"...": "..."}},
+    {"index": 1, "path": "/agent/page2", "ok": false, "error": "PAGE_NOT_FOUND"}
+  ],
+  "summary": {"total": 2, "succeeded": 1, "failed": 1}
+}
+```
+
+- `locale` 생략 시 `DEFAULT_LOCALE` 적용.
+- 최대 `BATCH_MAX_SIZE`개 (기본 50). 초과 시 422 `BATCH_TOO_LARGE` 반환.
+- 개별 항목 실패는 전체 요청을 중단하지 않는다.
+
+---
+
+## 8. 혼합 배치 작업 (Bulk Operations)
+
+upsert, patch-section, dry-run 항목을 하나의 요청 배열로 묶어 처리한다.
+
+```bash
+curl -s -X POST $GATEWAY_URL/pages/bulk \
+  -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operations": [
+      {
+        "id": "op-1", "type": "upsert",
+        "path": "/agent/page1", "locale": "ko",
+        "title": "제목", "content": "# 내용"
+      },
+      {
+        "id": "op-2", "type": "patch-section",
+        "path": "/agent/page2", "locale": "ko",
+        "baseHash": "<hash>",
+        "operation": {"type": "replace_between_markers", "name": "status", "content": "완료"}
+      },
+      {
+        "id": "op-3", "type": "dry-run",
+        "path": "/agent/page3", "locale": "ko",
+        "baseHash": "<hash>",
+        "operation": {"type": "append_under_heading", "heading": "## 로그", "content": "- 항목"}
+      }
+    ]
+  }' | jq .
+```
+
+**응답** (개별 항목 실패 시에도 HTTP 200)
+```json
+{
+  "ok": true,
+  "results": [
+    {"id": "op-1", "type": "upsert", "ok": true, "result": {"ok": true, "created": true, "pageId": 42, "path": "/agent/page1"}},
+    {"id": "op-2", "type": "patch-section", "ok": false, "error": "PAGE_CHANGED", "currentHash": "abc..."},
+    {"id": "op-3", "type": "dry-run", "ok": true, "result": {"ok": true, "mode": "dry_run", "changed": true, "diff": "...", "newHash": "xyz..."}}
+  ],
+  "summary": {"total": 3, "succeeded": 2, "failed": 1}
+}
+```
+
+**모드별 operation 동작**
+
+| type | read_only | dry_run | write |
+|------|-----------|---------|-------|
+| `upsert` | MODE_NOT_ALLOWED | MODE_NOT_ALLOWED | 실제 쓰기 실행 |
+| `patch-section` | MODE_NOT_ALLOWED | diff만 반환 | 실제 쓰기 실행 |
+| `dry-run` | MODE_NOT_ALLOWED | diff 반환 | diff 반환 |
+
+- 최대 `BATCH_MAX_SIZE`개 operations (기본 50). 초과 시 422 `BATCH_TOO_LARGE` 반환.
+- 동시 실행 수는 `BATCH_CONCURRENCY` (기본 10)로 제한.
+- `id`: 결과 매칭용 클라이언트 지정 문자열 (중복 허용).
+
+---
+
+## 9. 전체 흐름 예시 (Python)
 
 ```python
 import httpx, os
@@ -237,4 +368,13 @@ def update_status(path: str, new_status: str, max_retries: int = 3) -> dict:
         raise RuntimeError(result)
 
     raise RuntimeError("Max retries exceeded")
+
+
+def find_and_update(keyword: str, new_content: str) -> None:
+    # 1. 관련 페이지 검색
+    search = httpx.get(f"{BASE}/pages/search",
+                       params={"query": keyword, "limit": 5},
+                       headers=HEADERS).json()
+    for item in search["results"]:
+        print(f"발견: {item['path']} — {item['title']}")
 ```

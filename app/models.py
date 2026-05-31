@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.config import GatewayMode
 
@@ -102,3 +102,88 @@ class UpsertResponse(BaseModel):
     created: bool
     pageId: int
     path: str
+
+
+class SearchResultItem(BaseModel):
+    id: int
+    path: str
+    title: str
+    description: str
+    locale: str
+    updatedAt: str
+
+
+class SearchResponse(BaseModel):
+    ok: bool
+    query: str
+    results: list[SearchResultItem]
+    suggestions: list[str]
+    totalHits: int
+
+
+# ---- Bulk fetch ----
+
+class PathItem(BaseModel):
+    path: str
+    locale: str = ""
+
+
+class BulkFetchRequest(BaseModel):
+    paths: list[PathItem]
+
+
+class BulkFetchItem(BaseModel):
+    index: int
+    path: str
+    ok: bool
+    page: PageResponse | None = None
+    error: str | None = None
+
+
+class BulkFetchResponse(BaseModel):
+    ok: bool
+    results: list[BulkFetchItem]
+    summary: dict
+
+
+# ---- Bulk operations ----
+
+class BulkUpsertOperation(UpsertRequest):
+    id: str
+    type: Literal["upsert"]
+
+
+class BulkPatchOperation(PatchSectionRequest):
+    id: str
+    type: Literal["patch-section"]
+
+
+class BulkDryRunOperation(DryRunRequest):
+    id: str
+    type: Literal["dry-run"]
+
+
+BulkOperationItem = Annotated[
+    BulkUpsertOperation | BulkPatchOperation | BulkDryRunOperation,
+    Field(discriminator="type"),
+]
+
+
+class BulkRequest(BaseModel):
+    operations: list[BulkOperationItem]
+
+
+class BulkItemResult(BaseModel):
+    id: str
+    type: str
+    ok: bool
+    result: dict | None = None
+    error: str | None = None
+    message: str | None = None
+    currentHash: str | None = None
+
+
+class BulkResponse(BaseModel):
+    ok: bool
+    results: list[BulkItemResult]
+    summary: dict
