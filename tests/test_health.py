@@ -8,7 +8,7 @@ from app.main import app, get_wikijs_client
 TEST_ENV = {
     "wikijs_graphql_url": "http://wiki:3000/graphql",
     "wikijs_api_token": "wiki-token",
-    "wikijs_admin_api_token": "wiki-admin-token",
+    "gateway_admin_token": "test-admin-token",
 }
 
 

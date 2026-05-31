@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     wikijs_graphql_url: str
     wikijs_api_token: str
-    wikijs_admin_api_token: str
+    gateway_admin_token: str
 
 
 @lru_cache

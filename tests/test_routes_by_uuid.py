@@ -12,7 +12,7 @@ from app.wikijs_client import WikiJsError
 TEST_ENV = {
     "wikijs_graphql_url": "http://wiki:3000/graphql",
     "wikijs_api_token": "wiki-token",
-    "wikijs_admin_api_token": "wiki-admin-token",
+    "gateway_admin_token": "test-admin-token",
 }
 
 _UUID = "550e8400-e29b-41d4-a716-446655440000"

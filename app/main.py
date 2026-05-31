@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from app.audit import AuditRecord, write_audit
+from app.auth import verify_admin_token
 from app.config import Settings, get_settings
 from app.locking import compute_hash, verify_hash
 from app.markdown_patch import (
@@ -49,7 +50,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     client = WikiJsClient(
         settings.wikijs_graphql_url,
         settings.wikijs_api_token,
-        admin_api_token=settings.wikijs_admin_api_token,
     )
     app.state.wikijs_client = client
     yield
@@ -143,7 +143,7 @@ async def search_pages(
     )
 
 
-@app.post("/pages/dry-run", responses={403: {"model": PageChangedResponse}})
+@app.post("/pages/dry-run", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}})
 async def dry_run_patch(
     body: DryRunRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -201,7 +201,7 @@ def _apply_patch(content: str, op: PatchOperation) -> str:
         return replace_section(content, op.heading, op.content)
 
 
-@app.post("/pages/patch-section", responses={403: {"model": PageChangedResponse}})
+@app.post("/pages/patch-section", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}})
 async def patch_section(
     body: PatchSectionRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -312,7 +312,7 @@ async def bulk_fetch_pages(
     )
 
 
-@app.post("/pages/upsert")
+@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)])
 async def upsert_page(
     body: UpsertRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
