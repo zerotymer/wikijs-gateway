@@ -2,6 +2,10 @@ import hashlib
 
 
 def compute_hash(page_id: int, updated_at: str, content: str) -> str:
-    """sha256(page_id + newline + updated_at + newline + content)"""
     raw = f"{page_id}\n{updated_at}\n{content}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    hex_digest = hashlib.sha256(raw.encode()).hexdigest()
+    return f"sha256:{hex_digest}"
+
+
+def verify_hash(expected: str, page_id: int, updated_at: str, content: str) -> bool:
+    return expected == compute_hash(page_id, updated_at, content)

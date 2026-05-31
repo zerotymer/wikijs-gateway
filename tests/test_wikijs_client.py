@@ -130,5 +130,5 @@ def test_compute_hash_differs_on_content():
 
 def test_compute_hash_format():
     h = compute_hash(1, "ts", "c")
-    expected = hashlib.sha256(b"1\nts\nc").hexdigest()
-    assert h == expected
+    hex_part = hashlib.sha256(b"1\nts\nc").hexdigest()
+    assert h == f"sha256:{hex_part}"

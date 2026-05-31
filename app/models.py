@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 from app.config import GatewayMode
@@ -38,9 +40,34 @@ class WikiJsErrorResponse(BaseModel):
     details: list[dict] = []
 
 
-# --- Step 3: Dry-run / patch stubs ---
-# class PatchSectionRequest(BaseModel): ...
-# class DryRunResponse(BaseModel): ...
+class PatchOperation(BaseModel):
+    type: Literal["append_under_heading", "replace_between_markers", "replace_section"]
+    heading: str | None = None
+    name: str | None = None
+    content: str
+    create_heading: bool = False
+
+
+class DryRunRequest(BaseModel):
+    path: str
+    locale: str = ""
+    baseHash: str
+    operation: PatchOperation
+
+
+class DryRunResponse(BaseModel):
+    ok: bool
+    mode: GatewayMode
+    changed: bool
+    diff: str
+    newHash: str
+
+
+class PageChangedResponse(BaseModel):
+    ok: bool = False
+    error: str = "PAGE_CHANGED"
+    currentHash: str
+
 
 # --- Step 4: Upsert stubs ---
 # class UpsertPageRequest(BaseModel): ...
