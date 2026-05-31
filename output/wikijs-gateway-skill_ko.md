@@ -1,10 +1,10 @@
 ---
 name: wikijs-gateway
 description: |
-  wikijs-agent-gateway를 통해 Wiki.js 페이지를 읽고, 수정하고, 생성하는 스킬.
+  wikijs-agent-gateway를 통해 Wiki.js 페이지를 읽고, 검색하고, 수정하고, 생성하는 스킬.
   Gateway 엔드포인트(http://127.0.0.1:8088)와 GATEWAY_TOKEN을 사용한다.
-  Optimistic locking (baseHash) 처리, Patch operation 선택, Upsert 흐름을 안내한다.
-version: "1.0"
+  Optimistic locking (baseHash) 처리, Patch operation 선택, 검색, Upsert 흐름을 안내한다.
+version: "1.1"
 updated: "2026-05-31"
 ---
 
@@ -71,7 +71,46 @@ base_hash = page["contentHash"]
 
 ---
 
-## 3. Dry-run (변경 미리보기)
+## 3. 페이지 검색
+
+`read_only`를 포함한 모든 모드에서 사용 가능.
+
+```bash
+curl -s -H "Authorization: Bearer $GATEWAY_TOKEN" \
+  "$GATEWAY_URL/pages/search?query=배포&locale=ko&limit=10" | jq .
+```
+
+**쿼리 파라미터**
+
+| 파라미터 | 필수 | 기본값 | 설명 |
+|---------|------|--------|------|
+| `query` | ✅ | — | 검색 키워드 |
+| `locale` | ❌ | DEFAULT_LOCALE | locale 필터 |
+| `limit` | ❌ | 20 | 최대 결과 수 |
+
+**응답 예시**
+```json
+{
+  "ok": true,
+  "query": "배포",
+  "results": [
+    {
+      "id": 42,
+      "path": "agent/deploy-log",
+      "title": "배포 로그",
+      "description": "자동화 배포 기록",
+      "locale": "ko",
+      "updatedAt": "2026-05-31T10:00:00Z"
+    }
+  ],
+  "suggestions": [],
+  "totalHits": 1
+}
+```
+
+---
+
+## 4. Dry-run (변경 미리보기)
 
 실제로 쓰지 않고 diff를 확인한다. `dry_run` 또는 `write` 모드에서 사용 가능.
 
@@ -103,7 +142,7 @@ curl -s -X POST $GATEWAY_URL/pages/dry-run \
 
 ---
 
-## 4. 실제 Section Patch
+## 5. 실제 Section Patch
 
 `GATEWAY_MODE=write` 환경에서만 Wiki.js에 실제 반영된다.  
 `dry_run` 모드에서 호출하면 diff만 반환하고 쓰지 않는다.
@@ -137,7 +176,7 @@ if not result.get("ok") and result.get("error") == "PAGE_CHANGED":
 
 ---
 
-## 5. 페이지 생성/수정 (Upsert)
+## 6. 페이지 생성/수정 (Upsert)
 
 `write` 모드 전용. 경로가 없으면 생성, 있으면 전체 갱신.
 
@@ -166,7 +205,7 @@ curl -s -X POST $GATEWAY_URL/pages/upsert \
 
 ---
 
-## 6. Patch Operation 선택 가이드
+## 7. Patch Operation 선택 가이드
 
 | 상황 | 권장 operation |
 |------|--------------|
@@ -188,7 +227,7 @@ Wiki.js 페이지 Markdown 내에 아래 형식의 마커를 삽입한다:
 
 ---
 
-## 7. 에러 코드 빠른 참조
+## 8. 에러 코드 빠른 참조
 
 | error 코드 | 원인 | 대응 |
 |-----------|------|------|
@@ -201,7 +240,7 @@ Wiki.js 페이지 Markdown 내에 아래 형식의 마커를 삽입한다:
 
 ---
 
-## 8. 전체 흐름 예시 (Python)
+## 9. 전체 흐름 예시 (Python)
 
 ```python
 import httpx, os
@@ -237,4 +276,13 @@ def update_status(path: str, new_status: str, max_retries: int = 3) -> dict:
         raise RuntimeError(result)
 
     raise RuntimeError("Max retries exceeded")
+
+
+def find_and_update(keyword: str, new_content: str) -> None:
+    # 1. 관련 페이지 검색
+    search = httpx.get(f"{BASE}/pages/search",
+                       params={"query": keyword, "limit": 5},
+                       headers=HEADERS).json()
+    for item in search["results"]:
+        print(f"발견: {item['path']} — {item['title']}")
 ```

@@ -17,6 +17,25 @@ query GetPageByPath($path: String!, $locale: String!) {
 
 _QUERY_PING = "{ pages { list(limit: 1) { id } } }"
 
+_QUERY_SEARCH_PAGES = """
+query SearchPages($query: String!, $locale: String) {
+  pages {
+    search(query: $query, locale: $locale) {
+      results {
+        id
+        path
+        title
+        description
+        locale
+        updatedAt
+      }
+      suggestions
+      totalHits
+    }
+  }
+}
+"""
+
 _MUTATION_UPDATE_PAGE = """
 mutation UpdatePage(
   $id: Int!
@@ -245,6 +264,20 @@ class WikiJsClient:
                 tags=tags,
             )
             return result, True
+
+    async def search_pages(self, query: str, locale: str | None = None) -> dict:
+        variables: dict = {"query": query}
+        if locale:
+            variables["locale"] = locale
+        resp = await self._client.post(
+            self._graphql_url,
+            json={"query": _QUERY_SEARCH_PAGES, "variables": variables},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if errors := body.get("errors"):
+            raise WikiJsError(errors)
+        return body["data"]["pages"]["search"]
 
     async def ping(self) -> bool:
         try:

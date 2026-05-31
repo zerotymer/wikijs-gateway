@@ -26,6 +26,7 @@ from app.models import (
     PatchOperation,
     PatchSectionRequest,
     PatchSectionResponse,
+    SearchResponse,
     UpsertRequest,
     UpsertResponse,
 )
@@ -84,6 +85,32 @@ async def get_page_by_path(
     if page is None:
         raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "path": path})
     return page
+
+
+@app.get("/pages/search", response_model=SearchResponse, dependencies=[Depends(verify_token)])
+async def search_pages(
+    query: str,
+    locale: str = "",
+    limit: int = 20,
+    settings: Settings = Depends(get_settings),
+    client: WikiJsClient = Depends(get_wikijs_client),
+) -> SearchResponse:
+    effective_locale = locale or settings.default_locale
+    try:
+        data = await client.search_pages(query, effective_locale)
+    except WikiJsError as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
+
+    results = data.get("results") or []
+    return SearchResponse(
+        ok=True,
+        query=query,
+        results=results[:limit],
+        suggestions=data.get("suggestions") or [],
+        totalHits=data.get("totalHits") or 0,
+    )
 
 
 @app.post(
