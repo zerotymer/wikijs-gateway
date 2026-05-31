@@ -8,9 +8,6 @@ from app.locking import compute_hash
 from app.main import app, get_wikijs_client
 from app.models import PageResponse
 
-TOKEN = "test-token-abc"
-ADMIN_TOKEN = "test-admin-token-xyz"
-
 _CONTENT = "# Hello\n\n<!-- agent:start x -->\nold\n<!-- agent:end x -->\n\n## Section\n\nsome content\n"
 _UPDATED_AT = "2026-05-31T00:00:00.000Z"
 _PAGE_ID = 42
@@ -31,25 +28,15 @@ _SAMPLE_PAGE = PageResponse(
     tags=[],
 )
 
-
-def _settings(**overrides):
-    base = {
-        "wikijs_graphql_url": "http://wiki:3000/graphql",
-        "wikijs_api_token": "wiki-token",
-        "wikijs_admin_api_token": "wiki-admin-token",
-        "gateway_token": TOKEN,
-        "gateway_admin_token": ADMIN_TOKEN,
-        "gateway_mode": "dry_run",
-        "default_locale": "ko",
-        "allow_path_prefixes": "/agent,/draft",
-        "batch_max_size": "3",
-    }
-    base.update(overrides)
-    return Settings(**base)
+TEST_ENV = {
+    "wikijs_graphql_url": "http://wiki:3000/graphql",
+    "wikijs_api_token": "wiki-token",
+    "wikijs_admin_api_token": "wiki-admin-token",
+}
 
 
-def _setup(mock_client, **setting_overrides):
-    app.dependency_overrides[get_settings] = lambda: _settings(**setting_overrides)
+def _setup(mock_client):
+    app.dependency_overrides[get_settings] = lambda: Settings(**TEST_ENV)
     app.dependency_overrides[get_wikijs_client] = lambda: mock_client
     return TestClient(app)
 
@@ -67,7 +54,6 @@ def test_bulk_fetch_all_found():
     try:
         resp = client.post(
             "/pages/by-paths",
-            headers={"Authorization": f"Bearer {TOKEN}"},
             json={"paths": [{"path": "/agent/page1", "locale": "ko"}, {"path": "/agent/page2"}]},
         )
         assert resp.status_code == 200
@@ -89,7 +75,6 @@ def test_bulk_fetch_partial_not_found():
     try:
         resp = client.post(
             "/pages/by-paths",
-            headers={"Authorization": f"Bearer {TOKEN}"},
             json={"paths": [{"path": "/agent/page1"}, {"path": "/agent/missing"}]},
         )
         assert resp.status_code == 200
@@ -106,12 +91,14 @@ def test_bulk_fetch_partial_not_found():
 
 
 def test_bulk_fetch_too_large():
+    import app.main as main_module
+    original = main_module._BATCH_MAX_SIZE
+    main_module._BATCH_MAX_SIZE = 3
     mock = AsyncMock()
-    client = _setup(mock, batch_max_size="3")
+    client = _setup(mock)
     try:
         resp = client.post(
             "/pages/by-paths",
-            headers={"Authorization": f"Bearer {TOKEN}"},
             json={"paths": [{"path": f"/agent/p{i}"} for i in range(4)]},
         )
         assert resp.status_code == 422
@@ -120,6 +107,5 @@ def test_bulk_fetch_too_large():
         assert detail["received"] == 4
         assert detail["limit"] == 3
     finally:
+        main_module._BATCH_MAX_SIZE = original
         _teardown()
-
-

@@ -7,8 +7,6 @@ from app.config import Settings, get_settings
 from app.main import app, get_wikijs_client
 from app.wikijs_client import WikiJsError
 
-TOKEN = "test-token-abc"
-
 _SAMPLE_SEARCH_DATA = {
     "results": [
         {
@@ -32,24 +30,15 @@ _SAMPLE_SEARCH_DATA = {
     "totalHits": 2,
 }
 
-
-def _settings(**overrides):
-    base = {
-        "wikijs_graphql_url": "http://wiki:3000/graphql",
-        "wikijs_api_token": "wiki-token",
-        "wikijs_admin_api_token": "wiki-admin-token",
-        "gateway_token": TOKEN,
-        "gateway_admin_token": "admin-token-unused",
-        "gateway_mode": "read_only",
-        "default_locale": "ko",
-        "allow_path_prefixes": "/agent,/draft",
-    }
-    base.update(overrides)
-    return Settings(**base)
+TEST_ENV = {
+    "wikijs_graphql_url": "http://wiki:3000/graphql",
+    "wikijs_api_token": "wiki-token",
+    "wikijs_admin_api_token": "wiki-admin-token",
+}
 
 
-def _setup(mock_client, **setting_overrides):
-    app.dependency_overrides[get_settings] = lambda: _settings(**setting_overrides)
+def _setup(mock_client):
+    app.dependency_overrides[get_settings] = lambda: Settings(**TEST_ENV)
     app.dependency_overrides[get_wikijs_client] = lambda: mock_client
     return TestClient(app)
 
@@ -63,11 +52,7 @@ def test_search_returns_results():
     mock.search_pages.return_value = _SAMPLE_SEARCH_DATA
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "deploy"},
-        )
+        resp = client.get("/pages/search", params={"query": "deploy"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -85,30 +70,11 @@ def test_search_limit():
     mock.search_pages.return_value = _SAMPLE_SEARCH_DATA
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "deploy", "limit": 1},
-        )
+        resp = client.get("/pages/search", params={"query": "deploy", "limit": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["results"]) == 1
         assert data["results"][0]["id"] == 10
-    finally:
-        _teardown()
-
-
-def test_search_read_only_allowed():
-    mock = AsyncMock()
-    mock.search_pages.return_value = _SAMPLE_SEARCH_DATA
-    client = _setup(mock, gateway_mode="read_only")
-    try:
-        resp = client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "test"},
-        )
-        assert resp.status_code == 200
     finally:
         _teardown()
 
@@ -118,26 +84,9 @@ def test_search_wikijs_error():
     mock.search_pages.side_effect = WikiJsError([{"message": "SearchError"}])
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "deploy"},
-        )
+        resp = client.get("/pages/search", params={"query": "deploy"})
         assert resp.status_code == 502
         assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
-    finally:
-        _teardown()
-
-
-def test_search_requires_token():
-    mock = AsyncMock()
-    client = _setup(mock)
-    try:
-        resp = client.get(
-            "/pages/search",
-            params={"query": "deploy"},
-        )
-        assert resp.status_code == 401
     finally:
         _teardown()
 
@@ -145,14 +94,10 @@ def test_search_requires_token():
 def test_search_uses_default_locale():
     mock = AsyncMock()
     mock.search_pages.return_value = {**_SAMPLE_SEARCH_DATA, "results": []}
-    client = _setup(mock, default_locale="en")
+    client = _setup(mock)
     try:
-        client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "test"},
-        )
-        mock.search_pages.assert_called_once_with("test", "en")
+        client.get("/pages/search", params={"query": "test"})
+        mock.search_pages.assert_called_once_with("test", "ko")
     finally:
         _teardown()
 
@@ -160,13 +105,9 @@ def test_search_uses_default_locale():
 def test_search_locale_override():
     mock = AsyncMock()
     mock.search_pages.return_value = {**_SAMPLE_SEARCH_DATA, "results": []}
-    client = _setup(mock, default_locale="ko")
+    client = _setup(mock)
     try:
-        client.get(
-            "/pages/search",
-            headers={"Authorization": f"Bearer {TOKEN}"},
-            params={"query": "test", "locale": "en"},
-        )
+        client.get("/pages/search", params={"query": "test", "locale": "en"})
         mock.search_pages.assert_called_once_with("test", "en")
     finally:
         _teardown()

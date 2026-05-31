@@ -8,16 +8,10 @@ from app.main import app, get_wikijs_client
 from app.models import PageResponse
 from app.wikijs_client import WikiJsError
 
-TOKEN = "test-token-abc"
-
 TEST_ENV = {
     "wikijs_graphql_url": "http://wiki:3000/graphql",
     "wikijs_api_token": "wiki-token",
     "wikijs_admin_api_token": "wiki-admin-token",
-    "gateway_token": TOKEN,
-    "gateway_admin_token": "admin-token-unused",
-    "gateway_mode": "read_only",
-    "default_locale": "ko",
 }
 
 _SAMPLE_PAGE = PageResponse(
@@ -51,11 +45,7 @@ def test_get_page_by_path_success():
     mock.get_page_by_path.return_value = _SAMPLE_PAGE
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-path",
-            params={"path": "agent/test-page"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-path", params={"path": "agent/test-page"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == 42
@@ -70,11 +60,7 @@ def test_get_page_by_path_uses_default_locale():
     mock.get_page_by_path.return_value = _SAMPLE_PAGE
     client = _setup(mock)
     try:
-        client.get(
-            "/pages/by-path",
-            params={"path": "agent/test-page"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        client.get("/pages/by-path", params={"path": "agent/test-page"})
         mock.get_page_by_path.assert_called_once_with("agent/test-page", "ko")
     finally:
         _teardown()
@@ -85,11 +71,7 @@ def test_get_page_by_path_not_found():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-path",
-            params={"path": "nonexistent"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-path", params={"path": "nonexistent"})
         assert resp.status_code == 404
         assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
     finally:
@@ -101,11 +83,7 @@ def test_get_page_by_path_wikijs_error():
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "PageViewForbidden"}])
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-path",
-            params={"path": "some/page"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-path", params={"path": "some/page"})
         assert resp.status_code == 502
         assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
     finally:
@@ -119,24 +97,8 @@ def test_get_page_by_path_network_error():
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-path",
-            params={"path": "some/page"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-path", params={"path": "some/page"})
         assert resp.status_code == 502
         assert resp.json()["detail"]["error"] == "WIKIJS_UNREACHABLE"
-    finally:
-        _teardown()
-
-
-def test_get_page_by_path_no_auth():
-    mock = AsyncMock()
-    app.dependency_overrides[get_settings] = lambda: Settings(**TEST_ENV)
-    app.dependency_overrides[get_wikijs_client] = lambda: mock
-    try:
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/pages/by-path", params={"path": "some/page"})
-        assert resp.status_code == 401
     finally:
         _teardown()

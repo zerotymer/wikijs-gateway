@@ -9,19 +9,14 @@ from app.main import app, get_wikijs_client
 from app.models import PageResponse
 from app.wikijs_client import WikiJsError
 
-TOKEN = "test-token-abc"
-
 TEST_ENV = {
     "wikijs_graphql_url": "http://wiki:3000/graphql",
     "wikijs_api_token": "wiki-token",
     "wikijs_admin_api_token": "wiki-admin-token",
-    "gateway_token": TOKEN,
-    "gateway_admin_token": "admin-token-unused",
-    "gateway_mode": "read_only",
-    "default_locale": "ko",
 }
 
 _UUID = "550e8400-e29b-41d4-a716-446655440000"
+
 
 def _page(locale: str, path: str = f"skill/{_UUID}") -> PageResponse:
     return PageResponse(
@@ -58,18 +53,13 @@ def test_by_uuid_both_locales():
     )
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID, "type": "skill"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["uuid"] == _UUID
         assert data["type"] == "skill"
         assert data["pages"]["en"]["locale"] == "en"
         assert data["pages"]["ko"]["locale"] == "ko"
-        # path constructed correctly
         mock.get_page_by_path.assert_any_call(f"skill/{_UUID}", "en")
         mock.get_page_by_path.assert_any_call(f"skill/{_UUID}", "ko")
     finally:
@@ -83,11 +73,7 @@ def test_by_uuid_only_en_exists():
     )
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID, "type": "skill"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["pages"]["en"] is not None
@@ -101,11 +87,7 @@ def test_by_uuid_neither_exists_returns_404():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID, "type": "skill"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
         assert resp.status_code == 404
         assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
         assert resp.json()["detail"]["uuid"] == _UUID
@@ -121,11 +103,7 @@ def test_by_uuid_without_type():
     )
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
         assert resp.status_code == 200
         data = resp.json()
         assert data["type"] is None
@@ -139,11 +117,7 @@ def test_by_uuid_wikijs_error_propagates():
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "forbidden"}])
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID, "type": "skill"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
         assert resp.status_code == 502
         assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
     finally:
@@ -155,25 +129,8 @@ def test_by_uuid_network_error_propagates():
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:
-        resp = client.get(
-            "/pages/by-uuid",
-            params={"uuid": _UUID, "type": "skill"},
-            headers={"Authorization": f"Bearer {TOKEN}"},
-        )
+        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
         assert resp.status_code == 502
         assert resp.json()["detail"]["error"] == "WIKIJS_UNREACHABLE"
-    finally:
-        _teardown()
-
-
-def test_by_uuid_no_auth():
-    mock = AsyncMock()
-    from app.config import get_settings
-    app.dependency_overrides[get_settings] = lambda: Settings(**TEST_ENV)
-    app.dependency_overrides[get_wikijs_client] = lambda: mock
-    try:
-        client = TestClient(app, raise_server_exceptions=False)
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
-        assert resp.status_code == 401
     finally:
         _teardown()

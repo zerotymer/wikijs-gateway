@@ -2,12 +2,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.config import GatewayMode
-
 
 class HealthResponse(BaseModel):
     ok: bool
-    mode: GatewayMode
     wikijsReachable: bool
 
 
@@ -57,7 +54,6 @@ class DryRunRequest(BaseModel):
 
 class DryRunResponse(BaseModel):
     ok: bool
-    mode: GatewayMode
     changed: bool
     diff: str
     newHash: str
@@ -78,7 +74,6 @@ class PatchSectionRequest(BaseModel):
 
 class PatchSectionResponse(BaseModel):
     ok: bool
-    mode: GatewayMode
     changed: bool
     diff: str
     newHash: str
@@ -152,4 +147,3 @@ class PageByUuidResponse(BaseModel):
     uuid: str
     type: str | None
     pages: dict[str, PageResponse | None]  # {"en": PageResponse, "ko": None}
-

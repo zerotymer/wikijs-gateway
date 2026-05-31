@@ -18,7 +18,6 @@ def _make_record(**kwargs) -> AuditRecord:
         new_hash="sha256:def",
         diff="--- before\n+++ after\n@@ -1 +1 @@\n-old\n+new\n",
         wikijs_result={"succeeded": True},
-        mode="dry_run",
     )
     defaults.update(kwargs)
     return AuditRecord(**defaults)
@@ -34,7 +33,6 @@ def test_write_audit_creates_json(tmp_path):
 
     data = json.loads(json_files[0].read_text())
     assert data["path"] == "/agent/example"
-    assert data["mode"] == "dry_run"
     assert "diff" not in data  # diff goes to separate file
 
 

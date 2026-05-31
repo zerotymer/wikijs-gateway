@@ -7,8 +7,7 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, HTTPException, Request
 
 from app.audit import AuditRecord, write_audit
-from app.auth import verify_admin_token, verify_token
-from app.config import GatewayMode, Settings, get_settings
+from app.config import Settings, get_settings
 from app.locking import compute_hash, verify_hash
 from app.markdown_patch import (
     HeadingNotFoundError,
@@ -38,6 +37,11 @@ from app.models import (
 )
 from app.wikijs_client import WikiJsClient, WikiJsError
 
+_DEFAULT_LOCALE = "ko"
+_BATCH_MAX_SIZE = 50
+_BATCH_CONCURRENCY = 10
+_AUDIT_DIR = "/audit"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -54,38 +58,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="wikijs-agent-gateway", lifespan=lifespan)
 
-_MODE_ORDER = [GatewayMode.read_only, GatewayMode.dry_run, GatewayMode.write]
-
 
 def get_wikijs_client(request: Request) -> WikiJsClient:
     return request.app.state.wikijs_client
 
 
-def require_mode(min_mode: GatewayMode, settings: Settings) -> None:
-    if _MODE_ORDER.index(settings.gateway_mode) < _MODE_ORDER.index(min_mode):
-        raise HTTPException(
-            status_code=403,
-            detail={"error": "MODE_NOT_ALLOWED", "required": min_mode, "current": settings.gateway_mode},
-        )
-
-
-@app.get("/health", response_model=HealthResponse, dependencies=[Depends(verify_token)])
+@app.get("/health", response_model=HealthResponse)
 async def health(
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> HealthResponse:
     reachable = await client.ping()
-    return HealthResponse(ok=True, mode=settings.gateway_mode, wikijsReachable=reachable)
+    return HealthResponse(ok=True, wikijsReachable=reachable)
 
 
-@app.get("/pages/by-path", response_model=PageResponse, dependencies=[Depends(verify_token)])
+@app.get("/pages/by-path", response_model=PageResponse)
 async def get_page_by_path(
     path: str,
     locale: str = "",
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> PageResponse:
-    effective_locale = locale or settings.default_locale
+    effective_locale = locale or _DEFAULT_LOCALE
     try:
         page = await client.get_page_by_path(path, effective_locale)
     except WikiJsError as exc:
@@ -100,7 +92,7 @@ async def get_page_by_path(
 _UUID_LOCALES = ["en", "ko"]
 
 
-@app.get("/pages/by-uuid", response_model=PageByUuidResponse, dependencies=[Depends(verify_token)])
+@app.get("/pages/by-uuid", response_model=PageByUuidResponse)
 async def get_page_by_uuid(
     uuid: str,
     type: str = "",
@@ -126,15 +118,14 @@ async def get_page_by_uuid(
     return PageByUuidResponse(uuid=uuid, type=type or None, pages=pages)
 
 
-@app.get("/pages/search", response_model=SearchResponse, dependencies=[Depends(verify_token)])
+@app.get("/pages/search", response_model=SearchResponse)
 async def search_pages(
     query: str,
     locale: str = "",
     limit: int = 20,
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> SearchResponse:
-    effective_locale = locale or settings.default_locale
+    effective_locale = locale or _DEFAULT_LOCALE
     try:
         data = await client.search_pages(query, effective_locale)
     except WikiJsError as exc:
@@ -152,19 +143,12 @@ async def search_pages(
     )
 
 
-@app.post(
-    "/pages/dry-run",
-    dependencies=[Depends(verify_admin_token)],
-    responses={403: {"model": PageChangedResponse}},
-)
+@app.post("/pages/dry-run", responses={403: {"model": PageChangedResponse}})
 async def dry_run_patch(
     body: DryRunRequest,
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> DryRunResponse | PageChangedResponse:
-    require_mode(GatewayMode.dry_run, settings)
-
-    effective_locale = body.locale or settings.default_locale
+    effective_locale = body.locale or _DEFAULT_LOCALE
     try:
         page = await client.get_page_by_path(body.path, effective_locale)
     except WikiJsError as exc:
@@ -199,21 +183,7 @@ async def dry_run_patch(
     diff = compute_diff(page.content, patched) if changed else ""
     new_hash = compute_hash(page.id, page.updatedAt, patched)
 
-    return DryRunResponse(
-        ok=True,
-        mode=settings.gateway_mode,
-        changed=changed,
-        diff=diff,
-        newHash=new_hash,
-    )
-
-
-def check_path_allowed(path: str, settings: Settings) -> None:
-    if not any(path.startswith(prefix) for prefix in settings.allow_path_prefixes):
-        raise HTTPException(
-            status_code=403,
-            detail={"error": "PATH_NOT_ALLOWED", "path": path, "allowlist": settings.allow_path_prefixes},
-        )
+    return DryRunResponse(ok=True, changed=changed, diff=diff, newHash=new_hash)
 
 
 def _apply_patch(content: str, op: PatchOperation) -> str:
@@ -231,19 +201,12 @@ def _apply_patch(content: str, op: PatchOperation) -> str:
         return replace_section(content, op.heading, op.content)
 
 
-@app.post(
-    "/pages/patch-section",
-    dependencies=[Depends(verify_admin_token)],
-    responses={403: {"model": PageChangedResponse}},
-)
+@app.post("/pages/patch-section", responses={403: {"model": PageChangedResponse}})
 async def patch_section(
     body: PatchSectionRequest,
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> PatchSectionResponse | PageChangedResponse:
-    require_mode(GatewayMode.dry_run, settings)
-
-    effective_locale = body.locale or settings.default_locale
+    effective_locale = body.locale or _DEFAULT_LOCALE
     try:
         page = await client.get_page_by_path(body.path, effective_locale)
     except WikiJsError as exc:
@@ -265,18 +228,15 @@ async def patch_section(
     changed = patched != page.content
     diff = compute_diff(page.content, patched) if changed else ""
     new_hash = compute_hash(page.id, page.updatedAt, patched)
-
-    wikijs_result: dict | None = None
     now = datetime.now(timezone.utc).isoformat()
 
-    if settings.gateway_mode == GatewayMode.write:
-        check_path_allowed(body.path, settings)
-        try:
-            wikijs_result = await client.update_page(page, patched)
-        except WikiJsError as exc:
-            raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
+    wikijs_result: dict | None = None
+    try:
+        wikijs_result = await client.update_page(page, patched)
+    except WikiJsError as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
 
     audit_record = AuditRecord(
         timestamp=now,
@@ -289,18 +249,10 @@ async def patch_section(
         new_hash=new_hash if changed else None,
         diff=diff,
         wikijs_result=wikijs_result,
-        mode=settings.gateway_mode,
     )
-    write_audit(audit_record, settings.audit_dir)
+    write_audit(audit_record, _AUDIT_DIR)
 
-    return PatchSectionResponse(
-        ok=True,
-        mode=settings.gateway_mode,
-        changed=changed,
-        diff=diff,
-        newHash=new_hash,
-        pageId=page.id,
-    )
+    return PatchSectionResponse(ok=True, changed=changed, diff=diff, newHash=new_hash, pageId=page.id)
 
 
 async def _run_batch(tasks: list, concurrency: int) -> list:
@@ -314,9 +266,9 @@ async def _run_batch(tasks: list, concurrency: int) -> list:
 
 
 async def _handle_fetch_item(
-    index: int, item: PathItem, settings: Settings, client: WikiJsClient
+    index: int, item: PathItem, client: WikiJsClient
 ) -> BulkFetchItem:
-    effective_locale = item.locale or settings.default_locale
+    effective_locale = item.locale or _DEFAULT_LOCALE
     try:
         page = await client.get_page_by_path(item.path, effective_locale)
     except Exception:
@@ -326,25 +278,24 @@ async def _handle_fetch_item(
     return BulkFetchItem(index=index, path=item.path, ok=True, page=page)
 
 
-@app.post("/pages/by-paths", response_model=BulkFetchResponse, dependencies=[Depends(verify_token)])
+@app.post("/pages/by-paths", response_model=BulkFetchResponse)
 async def bulk_fetch_pages(
     body: BulkFetchRequest,
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> BulkFetchResponse:
-    if len(body.paths) > settings.batch_max_size:
+    if len(body.paths) > _BATCH_MAX_SIZE:
         raise HTTPException(
             status_code=422,
             detail={
                 "error": "BATCH_TOO_LARGE",
-                "message": f"최대 {settings.batch_max_size}개까지 처리할 수 있습니다.",
+                "message": f"최대 {_BATCH_MAX_SIZE}개까지 처리할 수 있습니다.",
                 "received": len(body.paths),
-                "limit": settings.batch_max_size,
+                "limit": _BATCH_MAX_SIZE,
             },
         )
 
-    tasks = [_handle_fetch_item(i, item, settings, client) for i, item in enumerate(body.paths)]
-    raw_results = await _run_batch(tasks, settings.batch_concurrency)
+    tasks = [_handle_fetch_item(i, item, client) for i, item in enumerate(body.paths)]
+    raw_results = await _run_batch(tasks, _BATCH_CONCURRENCY)
 
     fetch_results: list[BulkFetchItem] = []
     for i, result in enumerate(raw_results):
@@ -361,16 +312,12 @@ async def bulk_fetch_pages(
     )
 
 
-@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)])
+@app.post("/pages/upsert")
 async def upsert_page(
     body: UpsertRequest,
-    settings: Settings = Depends(get_settings),
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> UpsertResponse:
-    require_mode(GatewayMode.write, settings)
-    check_path_allowed(body.path, settings)
-
-    effective_locale = body.locale or settings.default_locale
+    effective_locale = body.locale or _DEFAULT_LOCALE
     try:
         result, created = await client.upsert_page(
             path=body.path,
@@ -401,9 +348,8 @@ async def upsert_page(
         new_hash=None,
         diff="",
         wikijs_result=result["responseResult"],
-        mode=settings.gateway_mode,
     )
-    write_audit(audit_record, settings.audit_dir)
+    write_audit(audit_record, _AUDIT_DIR)
 
     return UpsertResponse(
         ok=True,
