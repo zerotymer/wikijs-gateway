@@ -45,6 +45,8 @@ Gateway는 reverse proxy가 아닌 **애플리케이션 레벨 안전 proxy**다
 
 ## 프로젝트 구조
 
+> **현재 상태**: 계획 단계. `app/`, `tests/`, `Dockerfile` 등은 아직 생성되지 않았다.
+
 ```
 wikijs-agent-gateway/
   app/
