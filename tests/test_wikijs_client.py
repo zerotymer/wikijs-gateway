@@ -158,14 +158,19 @@ async def test_get_page_by_path_leading_slash_normalized(client):
 
 _TEST_UUID = "550e8400-e29b-41d4-a716-446655440000"
 
-_SEARCH_HIT = {"id": 10, "path": f"skill/{_TEST_UUID}", "title": "T", "locale": "en", "description": "", "updatedAt": "2026-05-31T00:00:00.000Z"}
+# pages.list returns path even when the search index does not cover the UUID.
+_LIST_ITEMS = [
+    {"id": 1, "path": "home", "locale": "ko"},
+    {"id": 2, "path": "guide/intro", "locale": "ko"},
+    {"id": 10, "path": f"skill/{_TEST_UUID}", "locale": "en"},
+]
 
 
 @pytest.mark.anyio
 @respx.mock
 async def test_find_path_by_uuid_found_with_prefix(client):
     respx.post(GRAPHQL_URL).mock(
-        return_value=_graphql_response({"pages": {"search": {"results": [_SEARCH_HIT], "suggestions": [], "totalHits": 1}}})
+        return_value=_graphql_response({"pages": {"list": _LIST_ITEMS}})
     )
     result = await client.find_path_by_uuid(_TEST_UUID)
     assert result == f"skill/{_TEST_UUID}"
@@ -176,7 +181,7 @@ async def test_find_path_by_uuid_found_with_prefix(client):
 @respx.mock
 async def test_find_path_by_uuid_not_found(client):
     respx.post(GRAPHQL_URL).mock(
-        return_value=_graphql_response({"pages": {"search": {"results": [], "suggestions": [], "totalHits": 0}}})
+        return_value=_graphql_response({"pages": {"list": _LIST_ITEMS[:2]}})
     )
     result = await client.find_path_by_uuid(_TEST_UUID)
     assert result is None
@@ -186,12 +191,36 @@ async def test_find_path_by_uuid_not_found(client):
 @pytest.mark.anyio
 @respx.mock
 async def test_find_path_by_uuid_found_bare(client):
-    bare_hit = {**_SEARCH_HIT, "path": _TEST_UUID}
+    bare_items = [{"id": 10, "path": _TEST_UUID, "locale": "en"}]
     respx.post(GRAPHQL_URL).mock(
-        return_value=_graphql_response({"pages": {"search": {"results": [bare_hit], "suggestions": [], "totalHits": 1}}})
+        return_value=_graphql_response({"pages": {"list": bare_items}})
     )
     result = await client.find_path_by_uuid(_TEST_UUID)
     assert result == _TEST_UUID
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_path_by_uuid_uses_list_not_search(client):
+    """The UUID lookup must hit pages.list — the search index doesn't cover paths."""
+    route = respx.post(GRAPHQL_URL).mock(
+        return_value=_graphql_response({"pages": {"list": _LIST_ITEMS}})
+    )
+    await client.find_path_by_uuid(_TEST_UUID)
+    import json
+    body = json.loads(route.calls[0].request.read())
+    assert "list" in body["query"]
+    assert "search" not in body["query"]
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_path_by_uuid_graphql_error(client):
+    respx.post(GRAPHQL_URL).mock(return_value=_graphql_error_response("Forbidden"))
+    with pytest.raises(WikiJsError):
+        await client.find_path_by_uuid(_TEST_UUID)
     await client.aclose()
 
 
