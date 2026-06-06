@@ -17,6 +17,18 @@ query GetPageByPath($path: String!, $locale: String!) {
 
 _QUERY_PING = "{ pages { list(limit: 1) { id } } }"
 
+_QUERY_LIST_PAGES = """
+query ListPages {
+  pages {
+    list {
+      id
+      path
+      locale
+    }
+  }
+}
+"""
+
 _QUERY_SEARCH_PAGES = """
 query SearchPages($query: String!, $locale: String) {
   pages {
@@ -283,10 +295,34 @@ class WikiJsClient:
             raise WikiJsError(errors)
         return body["data"]["pages"]["search"]
 
+    async def list_pages(self) -> list[dict]:
+        """Return the full page list (id, path, locale).
+
+        Wiki.js `pages.list` exposes every page's path regardless of the search
+        index, which `pages.search` does not cover — the search engine only
+        indexes title/description/content, never the path. UUID lookups must
+        therefore go through `list`, not `search`.
+        """
+        resp = await self._client.post(
+            self._graphql_url,
+            json={"query": _QUERY_LIST_PAGES},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if errors := body.get("errors"):
+            raise WikiJsError(errors)
+        return body["data"]["pages"]["list"] or []
+
     async def find_path_by_uuid(self, uuid: str) -> str | None:
-        """Search for a page path whose last segment equals the given UUID."""
-        data = await self.search_pages(uuid)
-        for item in (data.get("results") or []):
+        """Find a page path whose last segment equals the given UUID.
+
+        Uses `pages.list` (not `pages.search`) because the UUID lives only in
+        the path, which the search engine does not index.
+        """
+        # NOTE: list returns every page; if the catalog grows large, consider
+        # caching the result or probing known prefixes (skill/, guide/, ...).
+        pages = await self.list_pages()
+        for item in pages:
             path = item.get("path", "")
             if path == uuid or path.endswith(f"/{uuid}"):
                 return path

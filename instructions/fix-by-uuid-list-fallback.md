@@ -1,0 +1,119 @@
+---
+uuid: 5d20fdad-d760-4a5d-9a14-de415ba95803
+slug: fix-by-uuid-list-fallback
+title: "fix: /pages/by-uuid — type 생략 시 search fallback이 실패하는 문제 (pages.list 기반으로 교체)"
+status: active
+created: 2026-06-06
+updated: 2026-06-06
+---
+
+# fix: /pages/by-uuid type 생략 시 조회 실패 (search fallback 불완전)
+
+## 배경
+
+직전 fix(`8a13e909`)에서 `GET /pages/by-uuid?uuid=<UUID>` 호출 시 `type`을
+생략하면 `find_path_by_uuid`가 `pages.search`로 경로를 찾도록 fallback을
+추가했다. 그러나 운영 환경에서 **여전히 `type`을 생략하면 조회되지 않는다**.
+
+- 실패: `GET /pages/by-uuid?uuid=<UUID>`            (type 생략)
+- 성공: `GET /pages/by-uuid?uuid=<UUID>&type=skill`  (type 명시)
+
+## 원인
+
+`app/wikijs_client.py`의 `find_path_by_uuid`가 `search_pages(uuid)`에 의존한다.
+
+```python
+async def find_path_by_uuid(self, uuid: str) -> str | None:
+    data = await self.search_pages(uuid)
+    for item in (data.get("results") or []):
+        path = item.get("path", "")
+        if path == uuid or path.endswith(f"/{uuid}"):
+            return path
+    return None
+```
+
+Wiki.js 기본(DB) 검색 엔진은 **title / description / content만 색인**하고
+**path는 색인하지 않는다**. UUID는 path(`skill/<uuid>`)에만 존재하므로
+`pages.search(query=uuid)` 결과가 비어 `find_path_by_uuid`가 `None`을 반환하고,
+결국 `PAGE_NOT_FOUND`로 떨어진다.
+
+즉 기존 fix는 단위 테스트에서는 `find_path_by_uuid`를 mock으로 통과하지만,
+실제 검색 엔진이 UUID를 못 찾기 때문에 운영에서는 동작하지 않는다.
+
+> 참고 (메모리 `wikijs-api-known-issues`): `pages.list`는 page-level 권한을
+> 무시하고 **전체 페이지 목록(path 포함)을 반환**한다. 검색 색인과 무관하게
+> path를 신뢰성 있게 얻을 수 있는 경로다.
+
+## 목표
+
+`type` 생략 시에도 UUID만으로 페이지 경로를 신뢰성 있게 찾아 반환한다.
+검색 엔진의 색인 여부에 의존하지 않는다.
+
+## 구현 방향 — `pages.list` 기반 path 조회 (권장)
+
+`pages.search` 대신 `pages.list`로 페이지 목록을 받아 path가 `/{uuid}`로
+끝나거나 정확히 `{uuid}`인 항목을 필터링한다.
+
+### 1. `app/wikijs_client.py`
+
+- `_QUERY_LIST_PAGES` GraphQL 쿼리 추가
+  ```graphql
+  query ListPages($orderBy: PageOrderBy) {
+    pages {
+      list(orderBy: $orderBy) { id path locale }
+    }
+  }
+  ```
+  (Wiki.js `pages.list`는 path 필터 인자를 제공하지 않으므로 전체 목록을 받아
+  클라이언트에서 필터링한다. 정렬은 기본값 사용 가능.)
+- `list_pages()` 메서드 추가 — 목록을 그대로 반환.
+- `find_path_by_uuid`를 `pages.list` 기반으로 교체:
+  ```python
+  async def find_path_by_uuid(self, uuid: str) -> str | None:
+      pages = await self.list_pages()
+      for item in pages:
+          path = item.get("path", "")
+          if path == uuid or path.endswith(f"/{uuid}"):
+              return path
+      return None
+  ```
+- 기존 `search_pages`는 `GET /pages/search`에서 계속 사용하므로 **제거하지 않는다**.
+
+### 2. `app/main.py`
+
+- `/pages/by-uuid` 라우터: 변경 없음 (클라이언트 내부에서 처리).
+  단, `find_path_by_uuid` 예외 처리 흐름은 현행 유지(`WIKIJS_ERROR` /
+  `WIKIJS_UNREACHABLE`).
+
+### 3. 성능 고려
+
+- `pages.list`는 전체 목록을 반환하므로 페이지 수가 많아지면 비용이 커진다.
+  현 단계에서는 단순 구현으로 진행하되, 후속 개선 여지를 주석으로 남긴다
+  (예: 결과 캐싱 또는 prefix 후보 순차 조회).
+
+## 테스트 (`tests/test_wikijs_client.py`, `tests/test_routes_by_uuid.py`)
+
+- `test_wikijs_client.py`
+  - `find_path_by_uuid`가 `pages.list` 응답에서 `skill/<uuid>`를 찾아 반환 (respx mock)
+  - 목록에 일치 항목 없으면 `None` 반환
+  - bare `<uuid>` 경로도 매칭
+- `test_routes_by_uuid.py`
+  - 기존 케이스 회귀 확인 (mock 대상이 `find_path_by_uuid`이므로 라우터 테스트는 유지)
+  - `search_pages`에 의존하지 않음을 보장 (find_path_by_uuid mock 기준)
+
+## 완료 기준
+
+- `GET /pages/by-uuid?uuid=<UUID>` (`type` 생략) → 실제 페이지 정상 반환
+  (검색 색인 여부와 무관)
+- `GET /pages/by-uuid?uuid=<UUID>&type=<type>` → 기존 동작 유지
+- `find_path_by_uuid`가 `pages.list` 기반으로 동작, `pages.search` 미사용
+- 신규/기존 테스트 모두 통과, 회귀 없음
+- `output/wikijs-gateway-skill.md` / `_ko.md` 영향 없으면 변경 불필요
+  (엔드포인트 시그니처 동일)
+
+## 작업 순서
+
+1. 본 지침 기준 브랜치 생성 — 브랜치 전략 스킬 `e03f48fb-3e00-41d7-b99d-c32854567d67` 실행
+2. `wikijs_client.py` 구현 → 테스트 작성 → `pytest` 통과
+3. 운영 환경에서 `type` 생략 호출 수동 검증
+4. PR → main 머지 → 지침 completed 처리
