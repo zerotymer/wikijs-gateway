@@ -175,14 +175,16 @@ docker compose -f docker-compose.gateway.yml stop wikijs-agent-gateway
 
 Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정하지 않는다.
 
-### 이미지 배포 (Docker Hub + Nexus)
+### 이미지 배포 (Docker Hub + GHCR)
 
 이미지 빌드·게시는 `scripts/docker-publish.sh`로 한다(서버측 run/배포는 범위 밖).
 1회 빌드 후 두 레지스트리에 `<version>`+`latest` 태그로 push한다.
 
 ```bash
 docker login                       # Docker Hub (zerotymer/wikijs-gateway)
-docker login nexus.zerotymer.net   # Nexus (nexus.zerotymer.net/docker/wikijs-gateway)
+# GHCR은 write:packages 권한 토큰 필요 (ghcr.io/zerotymer/wikijs-gateway)
+gh auth refresh -h github.com -s write:packages
+gh auth token | docker login ghcr.io -u zerotymer --password-stdin
 scripts/docker-publish.sh 1.0.3    # 1.0.3 + latest 를 양쪽에 push
 ```
 
