@@ -175,6 +175,17 @@ docker compose -f docker-compose.gateway.yml stop wikijs-agent-gateway
 
 Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정하지 않는다.
 
+### 이미지 배포 (Docker Hub + Nexus)
+
+이미지 빌드·게시는 `scripts/docker-publish.sh`로 한다(서버측 run/배포는 범위 밖).
+1회 빌드 후 두 레지스트리에 `<version>`+`latest` 태그로 push한다.
+
+```bash
+docker login                       # Docker Hub (zerotymer/wikijs-gateway)
+docker login nexus.zerotymer.net   # Nexus (nexus.zerotymer.net/docker/wikijs-gateway)
+scripts/docker-publish.sh 1.0.3    # 1.0.3 + latest 를 양쪽에 push
+```
+
 ---
 ## Instructions 워크플로우
 
@@ -206,9 +217,9 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 | UUID | 파일 | 상태 |
 |------|------|------|
 | `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/.completed/f8363f94-7f73-4a73-bae4-75e9e38d585c.md) | completed |
-| `8a13e909-8a32-41b8-9cca-94c3f882a83a` | [by-uuid type fallback](instructions/.completed/8a13e909-8a32-41b8-9cca-94c3f882a83a.md) | completed |
 | `5d20fdad-d760-4a5d-9a14-de415ba95803` | [by-uuid pages.list fallback](instructions/.completed/5d20fdad-d760-4a5d-9a14-de415ba95803.md) | completed |
 | `710ef22b-69b7-4ee9-80d2-bf394c33b35b` | [step9-mcp-server.md](instructions/.completed/710ef22b-69b7-4ee9-80d2-bf394c33b35b.md) | completed |
+| `0035d621-6633-44cc-a92f-0ef6f9a73840` | [docker-image-publish](instructions/.completed/0035d621-6633-44cc-a92f-0ef6f9a73840.md) | completed |
 
 
 ## 개발 규칙

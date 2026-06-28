@@ -1,0 +1,19 @@
+# Keep the build context small. Dockerfile only needs requirements.txt + app/.
+.git
+.github
+.venv
+.output
+output
+tests
+instructions
+docs
+skills
+scripts
+__pycache__
+**/__pycache__
+.pytest_cache
+*.md
+sbom.json
+.env
+.env.*
+docker-compose*.yml

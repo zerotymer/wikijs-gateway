@@ -21,3 +21,5 @@ f8363f94-7f73-4a73-bae4-75e9e38d585c | Step 8: 역할 기반 인증 분리 (읽�
 5d20fdad-d760-4a5d-9a14-de415ba95803 | fix: /pages/by-uuid type 생략 시 pages.list fallback으로 교체 (search 색인 미반영 문제) | 2026-06-06T00:46:43Z | completed (PR #6 merged)
 710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T00:00:00Z | created
 710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T01:00:00Z | completed
+0035d621-6633-44cc-a92f-0ef6f9a73840 | Docker 이미지 빌드·배포 (Docker Hub + Nexus 2-레지스트리) | 2026-06-28T02:00:00Z | created
+0035d621-6633-44cc-a92f-0ef6f9a73840 | Docker 이미지 빌드·배포 (Docker Hub + Nexus 2-레지스트리) | 2026-06-28T02:30:00Z | completed
