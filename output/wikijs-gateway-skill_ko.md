@@ -34,6 +34,11 @@ GATEWAY_TOKEN=<읽기-토큰>
 
 모든 요청에 `Authorization: Bearer $GATEWAY_TOKEN` 헤더를 사용한다.
 
+> **MCP 대안**: 게이트웨이는 `$GATEWAY_URL/mcp`에서 MCP 서버(HTTP transport)로도
+> 동작한다. 아래 fetch는 `get_page_by_uuid` MCP tool에 대응한다 — 인증 모델 동일
+> (read tool은 토큰 불필요, admin tool은 Bearer 토큰 필요). 클라이언트가 지원하는
+> 인터페이스를 쓰면 되며, 여기 기술한 REST 방식이 정본이다.
+
 ## 가져오기 전략
 
 게이트웨이의 `GET /pages/by-uuid`를 사용한다. 게이트웨이는 각 locale별로 원본 Markdown `content`, `title`, `description`, `locale`, `path`, `contentHash`를 포함한 구조화된 JSON을 반환한다. HTML 스크래핑이나 GraphQL 스키마 탐색이 필요 없다.

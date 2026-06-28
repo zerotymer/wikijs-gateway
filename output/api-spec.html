@@ -283,13 +283,13 @@
   <nav class="sidebar">
     <div class="sidebar-logo">
       <h2>wikijs-gateway</h2>
-      <p>API Reference — v1.3</p>
+      <p>API Reference — v1.4</p>
     </div>
 
     <div class="sidebar-section">Overview</div>
     <a class="sidebar-link" href="#overview">소개 &amp; 아키텍처</a>
     <a class="sidebar-link" href="#auth">인증 (이중 토큰)</a>
-    <a class="sidebar-link" href="#modes">Gateway 모드</a>
+    <a class="sidebar-link" href="#mcp">MCP 서버</a>
     <a class="sidebar-link" href="#errors">공통 에러 코드</a>
 
     <div class="sidebar-section">Endpoints</div>
@@ -391,39 +391,28 @@
     </div>
 
     <!-- ── Modes ── -->
-    <div class="section" id="modes">
-      <h2>Gateway 모드</h2>
+    <div class="section" id="mcp">
+      <h2>MCP 서버</h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:16px;">동일한 게이트웨이가 <code>/mcp</code> 경로에서 MCP 서버(HTTP transport)로도 동작한다. 아래 REST 엔드포인트가 그대로 MCP tool로 노출되며 별도 포트·프로세스가 필요 없다. 인증 모델은 REST와 동일하다 — read tool은 무인증, admin tool은 <code>Authorization: Bearer &lt;GATEWAY_ADMIN_TOKEN&gt;</code> 헤더를 MCP 요청에 실어 보내야 한다(게이트웨이가 헤더를 라우트로 forward해 기존 검증·audit를 재사용).</p>
       <table>
         <thead>
           <tr>
-            <th>모드</th>
-            <th>ENV 값</th>
-            <th>허용 동작</th>
-            <th>차단 동작</th>
+            <th>MCP tool</th>
+            <th>매핑 REST</th>
+            <th>인증</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td><span class="mode-badge mode-ro">read_only</span></td>
-            <td><code>GATEWAY_MODE=read_only</code></td>
-            <td>health, 페이지 읽기, 검색</td>
-            <td>create, update, dry-run 계산</td>
-          </tr>
-          <tr>
-            <td><span class="mode-badge mode-dr">dry_run</span></td>
-            <td><code>GATEWAY_MODE=dry_run</code></td>
-            <td>read_only 전체 + patch 계산·diff 반환</td>
-            <td>실제 Wiki.js mutation 실행</td>
-          </tr>
-          <tr>
-            <td><span class="mode-badge mode-wr">write</span></td>
-            <td><code>GATEWAY_MODE=write</code></td>
-            <td>ALLOW_PATH_PREFIXES 내 create/update</td>
-            <td>허용 경로 외 쓰기</td>
-          </tr>
+          <tr><td><code>get_page_by_path</code></td><td>GET /pages/by-path</td><td><span class="mode-badge mode-ro">read</span></td></tr>
+          <tr><td><code>get_page_by_uuid</code></td><td>GET /pages/by-uuid</td><td><span class="mode-badge mode-ro">read</span></td></tr>
+          <tr><td><code>search_pages</code></td><td>GET /pages/search</td><td><span class="mode-badge mode-ro">read</span></td></tr>
+          <tr><td><code>get_pages_by_paths</code></td><td>POST /pages/by-paths</td><td><span class="mode-badge mode-ro">read</span></td></tr>
+          <tr><td><code>dry_run_patch</code></td><td>POST /pages/dry-run</td><td><span class="mode-badge mode-wr">admin</span></td></tr>
+          <tr><td><code>patch_section</code></td><td>POST /pages/patch-section</td><td><span class="mode-badge mode-wr">admin</span></td></tr>
+          <tr><td><code>upsert_page</code></td><td>POST /pages/upsert</td><td><span class="mode-badge mode-wr">admin</span></td></tr>
         </tbody>
       </table>
-      <p style="font-size:13px;color:var(--muted);margin-top:12px;">기본값: <code>dry_run</code>. <code>write</code> 모드는 ENV를 명시적으로 설정해야 활성화됩니다.</p>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px;"><code>/health</code>는 tool로 노출하지 않는다. 라이브러리: <code>fastapi-mcp</code> (기존 FastAPI 라우트 자동 반영).</p>
     </div>
 
     <!-- ── Errors ── -->
@@ -436,8 +425,6 @@
         <tbody>
           <tr><td>401</td><td>—</td><td>Authorization 헤더 누락</td></tr>
           <tr><td>403</td><td>—</td><td>토큰 불일치</td></tr>
-          <tr><td>403</td><td><code>MODE_NOT_ALLOWED</code></td><td>현재 Gateway 모드에서 허용되지 않는 동작</td></tr>
-          <tr><td>403</td><td><code>PATH_NOT_ALLOWED</code></td><td>ALLOW_PATH_PREFIXES 비대상 경로에 쓰기 시도</td></tr>
           <tr><td>403</td><td><code>PAGE_CHANGED</code></td><td>Optimistic lock 실패 (baseHash 불일치)</td></tr>
           <tr><td>404</td><td><code>PAGE_NOT_FOUND</code></td><td>해당 path/locale 페이지 없음</td></tr>
           <tr><td>422</td><td><code>BATCH_TOO_LARGE</code></td><td>배치 요청이 BATCH_MAX_SIZE 초과</td></tr>

@@ -5,6 +5,7 @@ from typing import AsyncGenerator
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi_mcp import FastApiMCP
 
 from app.audit import AuditRecord, write_audit
 from app.auth import verify_admin_token
@@ -63,7 +64,7 @@ def get_wikijs_client(request: Request) -> WikiJsClient:
     return request.app.state.wikijs_client
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse, operation_id="health")
 async def health(
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> HealthResponse:
@@ -71,7 +72,7 @@ async def health(
     return HealthResponse(ok=True, wikijsReachable=reachable)
 
 
-@app.get("/pages/by-path", response_model=PageResponse)
+@app.get("/pages/by-path", response_model=PageResponse, operation_id="get_page_by_path")
 async def get_page_by_path(
     path: str,
     locale: str = "",
@@ -92,7 +93,7 @@ async def get_page_by_path(
 _UUID_LOCALES = ["en", "ko"]
 
 
-@app.get("/pages/by-uuid", response_model=PageByUuidResponse)
+@app.get("/pages/by-uuid", response_model=PageByUuidResponse, operation_id="get_page_by_uuid")
 async def get_page_by_uuid(
     uuid: str,
     type: str = "",
@@ -134,7 +135,7 @@ async def get_page_by_uuid(
     return PageByUuidResponse(uuid=uuid, type=resolved_type, pages=pages)
 
 
-@app.get("/pages/search", response_model=SearchResponse)
+@app.get("/pages/search", response_model=SearchResponse, operation_id="search_pages")
 async def search_pages(
     query: str,
     locale: str = "",
@@ -159,7 +160,7 @@ async def search_pages(
     )
 
 
-@app.post("/pages/dry-run", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}})
+@app.post("/pages/dry-run", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}}, operation_id="dry_run_patch")
 async def dry_run_patch(
     body: DryRunRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -217,7 +218,7 @@ def _apply_patch(content: str, op: PatchOperation) -> str:
         return replace_section(content, op.heading, op.content)
 
 
-@app.post("/pages/patch-section", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}})
+@app.post("/pages/patch-section", dependencies=[Depends(verify_admin_token)], responses={403: {"model": PageChangedResponse}}, operation_id="patch_section")
 async def patch_section(
     body: PatchSectionRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -294,7 +295,7 @@ async def _handle_fetch_item(
     return BulkFetchItem(index=index, path=item.path, ok=True, page=page)
 
 
-@app.post("/pages/by-paths", response_model=BulkFetchResponse)
+@app.post("/pages/by-paths", response_model=BulkFetchResponse, operation_id="get_pages_by_paths")
 async def bulk_fetch_pages(
     body: BulkFetchRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -328,7 +329,7 @@ async def bulk_fetch_pages(
     )
 
 
-@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)])
+@app.post("/pages/upsert", dependencies=[Depends(verify_admin_token)], operation_id="upsert_page")
 async def upsert_page(
     body: UpsertRequest,
     client: WikiJsClient = Depends(get_wikijs_client),
@@ -373,3 +374,18 @@ async def upsert_page(
         pageId=page_data["id"],
         path=page_data["path"],
     )
+
+
+# ---- MCP server (HTTP transport, mounted on the same app at /mcp) ----
+# Reflects the REST routes above into MCP tools. Auth is NOT re-implemented:
+# forwarding the Authorization header lets each route's own dependency
+# (verify_admin_token on write routes) run unchanged — read tools stay open,
+# admin tools stay gated by GATEWAY_ADMIN_TOKEN, identical to REST.
+# /health is excluded (not a tool).
+mcp = FastApiMCP(
+    app,
+    name="wikijs-agent-gateway",
+    exclude_operations=["health"],
+    headers=["authorization"],
+)
+mcp.mount_http()

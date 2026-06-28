@@ -37,6 +37,12 @@ GATEWAY_TOKEN=<read-token>
 
 All requests use `Authorization: Bearer $GATEWAY_TOKEN`.
 
+> **MCP alternative**: the gateway also exposes an MCP server at `$GATEWAY_URL/mcp`
+> (HTTP transport). The fetch below maps to the `get_page_by_uuid` MCP tool — same
+> auth model (read tools need no token; admin tools require the Bearer token).
+> Use whichever interface your client speaks; the REST flow described here is the
+> canonical one.
+
 ## Fetch Strategy
 
 Use `GET /pages/by-uuid` from the gateway. The gateway returns structured JSON
