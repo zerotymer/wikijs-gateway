@@ -69,6 +69,7 @@ wikijs-agent-gateway/
     test_markdown_patch.py
     test_locking.py
     test_audit.py
+    test_mcp_server.py
   Dockerfile
   requirements.txt
   docker-compose.gateway.yml  # 독립 실행 (base compose 불필요)
@@ -104,6 +105,10 @@ wikijs-agent-gateway/
 | `POST` | `/pages/upsert` | GATEWAY_ADMIN_TOKEN | page 생성/수정 |
 
 쓰기 엔드포인트(`dry-run`, `patch-section`, `upsert`)는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
+
+### MCP 서버 (Step 9)
+
+동일 앱이 `/mcp` 경로에서 MCP 서버(HTTP transport)로도 동작한다. 위 8개 라우트 중 `/health`를 제외한 7개가 `fastapi-mcp`로 MCP tool로 자동 노출된다(`get_page_by_path`, `get_page_by_uuid`, `search_pages`, `get_pages_by_paths`, `dry_run_patch`, `patch_section`, `upsert_page`). 인증은 REST와 동일 — `FastApiMCP(app, headers=["authorization"])`로 Authorization 헤더를 라우트로 forward해 기존 `verify_admin_token`·audit를 그대로 재사용한다(별도 auth 로직 없음). tool 이름 안정화를 위해 각 라우트에 `operation_id`를 명시했다.
 
 ---
 
@@ -203,6 +208,7 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 | `f8363f94-7f73-4a73-bae4-75e9e38d585c` | [step8-auth-roles.md](instructions/.completed/f8363f94-7f73-4a73-bae4-75e9e38d585c.md) | completed |
 | `8a13e909-8a32-41b8-9cca-94c3f882a83a` | [by-uuid type fallback](instructions/.completed/8a13e909-8a32-41b8-9cca-94c3f882a83a.md) | completed |
 | `5d20fdad-d760-4a5d-9a14-de415ba95803` | [by-uuid pages.list fallback](instructions/.completed/5d20fdad-d760-4a5d-9a14-de415ba95803.md) | completed |
+| `710ef22b-69b7-4ee9-80d2-bf394c33b35b` | [step9-mcp-server.md](instructions/.completed/710ef22b-69b7-4ee9-80d2-bf394c33b35b.md) | completed |
 
 
 ## 개발 규칙

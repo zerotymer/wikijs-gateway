@@ -19,3 +19,5 @@ f8363f94-7f73-4a73-bae4-75e9e38d585c | Step 8: 역할 기반 인증 분리 (읽�
 8a13e909-8a32-41b8-9cca-94c3f882a83a | fix: /pages/by-uuid type 파라미터 누락 시 PAGE_NOT_FOUND 버그 수정 | 2026-05-31T21:00:00Z | completed
 5d20fdad-d760-4a5d-9a14-de415ba95803 | fix: /pages/by-uuid type 생략 시 pages.list fallback으로 교체 (search 색인 미반영 문제) | 2026-06-06T00:10:39Z | created
 5d20fdad-d760-4a5d-9a14-de415ba95803 | fix: /pages/by-uuid type 생략 시 pages.list fallback으로 교체 (search 색인 미반영 문제) | 2026-06-06T00:46:43Z | completed (PR #6 merged)
+710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T00:00:00Z | created
+710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T01:00:00Z | completed

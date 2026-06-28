@@ -4,4 +4,5 @@ httpx==0.28.1
 pydantic==2.13.4
 pydantic-settings==2.14.1
 python-dotenv==1.2.2
+fastapi-mcp==0.4.0
 respx==0.23.1

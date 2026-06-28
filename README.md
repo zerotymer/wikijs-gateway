@@ -55,6 +55,39 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 
 쓰기 엔드포인트는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
 
+## MCP 서버
+
+동일한 게이트웨이가 `/mcp` 경로에서 **MCP 서버**(HTTP transport)로도 동작한다. 위 REST 라우트가 그대로 MCP tool로 노출된다 — 별도 포트·프로세스 불필요.
+
+| MCP tool | 매핑 REST | 인증 |
+|---|---|---|
+| `get_page_by_path` | `GET /pages/by-path` | 없음 |
+| `get_page_by_uuid` | `GET /pages/by-uuid` | 없음 |
+| `search_pages` | `GET /pages/search` | 없음 |
+| `get_pages_by_paths` | `POST /pages/by-paths` | 없음 |
+| `dry_run_patch` | `POST /pages/dry-run` | GATEWAY_ADMIN_TOKEN |
+| `patch_section` | `POST /pages/patch-section` | GATEWAY_ADMIN_TOKEN |
+| `upsert_page` | `POST /pages/upsert` | GATEWAY_ADMIN_TOKEN |
+
+인증은 REST와 동일하다: read tool은 무인증, admin tool은 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더를 MCP 요청에 실어 보내야 한다. 게이트웨이가 이 헤더를 그대로 라우트로 forward해 기존 검증·audit를 재사용한다.
+
+MCP 클라이언트 설정 예시(`mcp-remote`로 헤더 전달):
+
+```json
+{
+  "mcpServers": {
+    "wikijs-gateway": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://127.0.0.1:8088/mcp",
+               "--header", "Authorization:${GATEWAY_ADMIN_TOKEN}"],
+      "env": { "GATEWAY_ADMIN_TOKEN": "Bearer <your-admin-token>" }
+    }
+  }
+}
+```
+
+읽기 전용으로 붙을 거면 `Authorization` 헤더를 생략해도 read tool 4종은 동작한다.
+
 ## 빠른 시작
 
 ```bash
