@@ -5,4 +5,12 @@ pydantic==2.13.4
 pydantic-settings==2.14.1
 python-dotenv==1.2.2
 fastapi-mcp==0.4.0
+# ponytail: temporary bridge, not a settled choice. fastapi-mcp 0.4.0 declares
+# mcp>=1.12.0 with no upper bound, and mcp 2.0 changed
+# Server.__init__(name, description) -> Server(name), so an unpinned rebuild
+# crashes at import (app/main.py FastApiMCP block).
+# mcp 1.x is legacy and fastapi-mcp has had no release since 2025-07, so this cap
+# is a stopgap until the fastmcp migration lands:
+# instructions/2d68d82d-c12d-49e3-b945-1a526fd0fba4.md
+mcp>=1.12.0,<2.0.0
 respx==0.23.1
