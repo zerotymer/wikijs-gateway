@@ -52,6 +52,19 @@ Authorization: Bearer $GATEWAY_TOKEN
 
 게이트웨이가 두 locale 모두 404를 반환하면 실패를 보고하고, 사용자가 best-effort 가져오기를 요청하지 않는 한 부분적인 스킬 파일을 만들지 않는다.
 
+### 파일 직접 다운로드
+
+`GET /pages/download`는 JSON 대신 Markdown 원문을 반환하므로 `jq` 없이 `curl` 단독으로 파일을 기록할 수 있다. `title`/`tags`/`contentHash`가 필요 없고 디스크에 파일만 있으면 될 때 사용한다.
+
+```bash
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=en"                   # → SKILL.md
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" # → SKILL_ko.md
+```
+
+파일명 기본값은 해석된 type을 대문자화한 값(`skill` → `SKILL.md`)이며, 해석에 실패하면 `noname.md`다. `locale`은 **내용만** 선택하고 파일명에는 반영되지 않으므로, 위 두 번째 호출은 `filename`을 지정하지 않으면 첫 번째와 파일명이 겹친다. `filename`은 확장자 없는 base name이고(`^[A-Za-z0-9._-]{1,64}$`) 확장자는 항상 `.md`로 고정된다. `-f`를 반드시 붙인다 — 없으면 404 JSON 본문이 그대로 파일에 기록된다.
+
+이 라우트는 MCP tool로 노출되지 않는다 — MCP 클라이언트에는 `get_page_by_uuid`가 이미 같은 내용을 반환한다.
+
 ## 동적 방식과 정적 방식
 
 동적 가져오기는 허용된다.

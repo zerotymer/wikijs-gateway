@@ -1,10 +1,12 @@
 import asyncio
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from fastapi_mcp import FastApiMCP
 
 from app.audit import AuditRecord, write_audit
@@ -93,28 +95,30 @@ async def get_page_by_path(
 _UUID_LOCALES = ["en", "ko"]
 
 
+async def _resolve_uuid_path(
+    uuid: str, type: str, client: WikiJsClient
+) -> tuple[str, str | None]:
+    """Resolve a uuid (+ optional type) to a wiki path and the type prefix."""
+    if type:
+        return f"{type}/{uuid}", type
+    try:
+        found = await client.find_path_by_uuid(uuid)
+    except WikiJsError as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
+    if found is not None and found != uuid:
+        return found, found[: -(len(uuid) + 1)]  # strip trailing "/{uuid}" to get prefix
+    return found or uuid, None
+
+
 @app.get("/pages/by-uuid", response_model=PageByUuidResponse, operation_id="get_page_by_uuid")
 async def get_page_by_uuid(
     uuid: str,
     type: str = "",
     client: WikiJsClient = Depends(get_wikijs_client),
 ) -> PageByUuidResponse:
-    if type:
-        path = f"{type}/{uuid}"
-        resolved_type: str | None = type
-    else:
-        try:
-            found = await client.find_path_by_uuid(uuid)
-        except WikiJsError as exc:
-            raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
-        if found is not None and found != uuid:
-            path = found
-            resolved_type = found[: -(len(uuid) + 1)]  # strip trailing "/{uuid}" to get prefix
-        else:
-            path = found or uuid
-            resolved_type = None
+    path, resolved_type = await _resolve_uuid_path(uuid, type, client)
 
     results = await asyncio.gather(
         *[client.get_page_by_path(path, locale) for locale in _UUID_LOCALES],
@@ -133,6 +137,54 @@ async def get_page_by_uuid(
         raise HTTPException(status_code=404, detail={"error": "PAGE_NOT_FOUND", "uuid": uuid})
 
     return PageByUuidResponse(uuid=uuid, type=resolved_type, pages=pages)
+
+
+# Filenames end up in a Content-Disposition header, so keep the charset tight:
+# no slashes, quotes, newlines or non-ASCII. Applied to the wiki-derived type
+# prefix too, since that is remote data reaching a response header.
+_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+@app.get("/pages/download", response_class=PlainTextResponse, operation_id="download_page")
+async def download_page(
+    uuid: str,
+    type: str = "",
+    locale: str = "",
+    filename: str = "",
+    client: WikiJsClient = Depends(get_wikijs_client),
+) -> PlainTextResponse:
+    base = ""
+    if filename:
+        # ponytail: extension is always .md, but tolerate callers passing it anyway
+        base = filename[:-3] if filename.endswith(".md") else filename
+        if not _FILENAME_RE.match(base) or ".." in base:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "INVALID_FILENAME", "filename": filename},
+            )
+
+    path, resolved_type = await _resolve_uuid_path(uuid, type, client)
+    effective_locale = locale or _DEFAULT_LOCALE
+    try:
+        page = await client.get_page_by_path(path, effective_locale)
+    except WikiJsError as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_ERROR", "details": exc.errors})
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail={"error": "WIKIJS_UNREACHABLE", "message": str(exc)})
+    if page is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "PAGE_NOT_FOUND", "uuid": uuid, "locale": effective_locale},
+        )
+
+    if not base:
+        base = resolved_type.upper() if resolved_type and _FILENAME_RE.match(resolved_type) else "noname"
+
+    return PlainTextResponse(
+        page.content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{base}.md"'},
+    )
 
 
 @app.get("/pages/search", response_model=SearchResponse, operation_id="search_pages")
@@ -381,11 +433,12 @@ async def upsert_page(
 # forwarding the Authorization header lets each route's own dependency
 # (verify_admin_token on write routes) run unchanged — read tools stay open,
 # admin tools stay gated by GATEWAY_ADMIN_TOKEN, identical to REST.
-# /health is excluded (not a tool).
+# /health is excluded (not a tool), as is /pages/download — it exists for curl,
+# and get_page_by_uuid already hands an MCP client the same content.
 mcp = FastApiMCP(
     app,
     name="wikijs-agent-gateway",
-    exclude_operations=["health"],
+    exclude_operations=["health", "download_page"],
     headers=["authorization"],
 )
 mcp.mount_http()

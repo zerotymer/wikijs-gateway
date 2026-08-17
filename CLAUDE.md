@@ -65,6 +65,7 @@ wikijs-agent-gateway/
     test_routes_search.py
     test_routes_by_uuid.py
     test_routes_bulk.py
+    test_routes_download.py
     test_wikijs_client.py
     test_markdown_patch.py
     test_locking.py
@@ -98,6 +99,7 @@ wikijs-agent-gateway/
 | `GET` | `/health` | 없음 | 서비스 상태 + wikijsReachable |
 | `GET` | `/pages/by-path` | 없음 | path + locale로 page 조회 |
 | `GET` | `/pages/by-uuid` | 없음 | UUID로 en+ko 동시 조회 |
+| `GET` | `/pages/download` | 없음 | UUID로 markdown 원문 파일 다운로드 (`curl -fOJ` 전용) |
 | `GET` | `/pages/search` | 없음 | 키워드 검색 |
 | `POST` | `/pages/by-paths` | 없음 | 다건 page 조회 (최대 BATCH_MAX_SIZE) |
 | `POST` | `/pages/dry-run` | GATEWAY_ADMIN_TOKEN | patch diff만 반환, 실제 쓰기 없음 |
@@ -106,9 +108,11 @@ wikijs-agent-gateway/
 
 쓰기 엔드포인트(`dry-run`, `patch-section`, `upsert`)는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
 
+`/pages/download`만 JSON이 아니라 `text/markdown` 원문을 반환한다 (`Content-Disposition: attachment`). 파일명은 `filename` 파라미터(확장자 없는 base name, `^[A-Za-z0-9._-]{1,64}$`) 또는 해석된 type 대문자화(`skill` → `SKILL.md`), 실패 시 `noname.md`. 확장자는 `.md` 고정이고 `locale`은 내용만 고르며 파일명에는 반영하지 않는다. 자세한 사용법은 README 참고.
+
 ### MCP 서버 (Step 9)
 
-동일 앱이 `/mcp` 경로에서 MCP 서버(HTTP transport)로도 동작한다. 위 8개 라우트 중 `/health`를 제외한 7개가 `fastapi-mcp`로 MCP tool로 자동 노출된다(`get_page_by_path`, `get_page_by_uuid`, `search_pages`, `get_pages_by_paths`, `dry_run_patch`, `patch_section`, `upsert_page`). 인증은 REST와 동일 — `FastApiMCP(app, headers=["authorization"])`로 Authorization 헤더를 라우트로 forward해 기존 `verify_admin_token`·audit를 그대로 재사용한다(별도 auth 로직 없음). tool 이름 안정화를 위해 각 라우트에 `operation_id`를 명시했다.
+동일 앱이 `/mcp` 경로에서 MCP 서버(HTTP transport)로도 동작한다. 위 라우트 중 `/health`와 `/pages/download`를 제외한 7개가 `fastapi-mcp`로 MCP tool로 자동 노출된다(`get_page_by_path`, `get_page_by_uuid`, `search_pages`, `get_pages_by_paths`, `dry_run_patch`, `patch_section`, `upsert_page`). 인증은 REST와 동일 — `FastApiMCP(app, headers=["authorization"])`로 Authorization 헤더를 라우트로 forward해 기존 `verify_admin_token`·audit를 그대로 재사용한다(별도 auth 로직 없음). tool 이름 안정화를 위해 각 라우트에 `operation_id`를 명시했다.
 
 ---
 
@@ -209,6 +213,7 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 | `8a13e909-8a32-41b8-9cca-94c3f882a83a` | [by-uuid type fallback](instructions/.completed/8a13e909-8a32-41b8-9cca-94c3f882a83a.md) | completed |
 | `5d20fdad-d760-4a5d-9a14-de415ba95803` | [by-uuid pages.list fallback](instructions/.completed/5d20fdad-d760-4a5d-9a14-de415ba95803.md) | completed |
 | `710ef22b-69b7-4ee9-80d2-bf394c33b35b` | [step9-mcp-server.md](instructions/.completed/710ef22b-69b7-4ee9-80d2-bf394c33b35b.md) | completed |
+| `36f02a09-5945-49bd-8f84-ec1de698c443` | [pages-download](instructions/36f02a09-5945-49bd-8f84-ec1de698c443.md) | in_progress |
 
 
 ## 개발 규칙
