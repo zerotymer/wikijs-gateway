@@ -1,5 +1,8 @@
 FROM python:3.12-slim
 
+# Links the GHCR package to the repo (shows under repo > Packages)
+LABEL org.opencontainers.image.source="https://github.com/zerotymer/wikijs-gateway"
+
 WORKDIR /app
 
 COPY requirements.txt .
