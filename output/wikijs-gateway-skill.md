@@ -63,6 +63,27 @@ regardless of type.
 If the gateway returns 404 for both locales, report the failure and do not
 create partial skill files unless the user asks for a best-effort import.
 
+### Direct file download
+
+`GET /pages/download` returns the raw Markdown instead of JSON, so `curl` alone
+writes the file — no `jq` needed. Use it when you only want the files on disk
+and do not need `title`/`tags`/`contentHash`.
+
+```bash
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=en"                  # → SKILL.md
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" # → SKILL_ko.md
+```
+
+The filename defaults to the resolved type uppercased (`skill` → `SKILL.md`),
+falling back to `noname.md`. `locale` picks the content only — it never changes
+the filename, so the second call above must pass `filename` or it would collide
+with the first. `filename` is a base name without extension
+(`^[A-Za-z0-9._-]{1,64}$`); the extension is always `.md`. Always pass `-f`, or
+a 404 JSON body gets written into the file.
+
+Note this route is not exposed as an MCP tool — `get_page_by_uuid` already
+returns the same content to MCP clients.
+
 ## Dynamic vs Static
 
 Dynamic import is allowed.

@@ -47,6 +47,7 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 | `GET` | `/health` | 없음 | 서비스 상태 + wikijsReachable |
 | `GET` | `/pages/by-path` | 없음 | path + locale로 page 조회 |
 | `GET` | `/pages/by-uuid` | 없음 | UUID로 en+ko 동시 조회 |
+| `GET` | `/pages/download` | 없음 | UUID로 markdown 원문을 파일로 다운로드 |
 | `GET` | `/pages/search` | 없음 | 키워드 검색 |
 | `POST` | `/pages/by-paths` | 없음 | 다건 page 조회 |
 | `POST` | `/pages/dry-run` | GATEWAY_ADMIN_TOKEN | patch diff만 반환, 실제 쓰기 없음 |
@@ -55,9 +56,31 @@ Wiki.js /graphql  →  PostgreSQL  →  Git storage sync
 
 쓰기 엔드포인트는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
 
+### 파일 다운로드
+
+`/pages/download`는 JSON이 아니라 markdown 원문을 그대로 반환한다. `jq` 없이 `curl` 단독으로 파일을 받기 위한 라우트다.
+
+```bash
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<UUID>"                    # → SKILL.md (ko 내용)
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<UUID>&locale=en"          # → SKILL.md (en 내용)
+curl -fOJ "$GATEWAY_URL/pages/download?uuid=<UUID>&filename=SKILL_ko"  # → SKILL_ko.md
+```
+
+| 파라미터 | 필수 | 기본 | 설명 |
+|---|---|---|---|
+| `uuid` | ✅ | — | 조회 키 |
+| `type` | — | — | 생략 시 `/pages/by-uuid`와 동일하게 경로 역추적 |
+| `locale` | — | `ko` | **내용 선택에만** 사용. 파일명에는 반영하지 않음 |
+| `filename` | — | `{TYPE}` | 확장자 없는 base name. 확장자는 항상 `.md` 고정 |
+
+- 파일명 기본값은 해석된 type을 대문자화한 값(`skill` → `SKILL.md`), 해석 실패 시 `noname.md`.
+- `filename` 허용 문자는 `^[A-Za-z0-9._-]{1,64}$` (`..` 불가). 위반 시 422 `INVALID_FILENAME`.
+- `-f`를 반드시 붙일 것 — 없으면 404 JSON이 그대로 파일로 저장된다.
+- en·ko를 연달아 받으면 파일명이 같다. 둘 다 보관하려면 두 번째 호출에 `filename`을 지정한다. (`curl -OJ`는 기존 파일 덮어쓰기를 거부한다)
+
 ## MCP 서버
 
-동일한 게이트웨이가 `/mcp` 경로에서 **MCP 서버**(HTTP transport)로도 동작한다. 위 REST 라우트가 그대로 MCP tool로 노출된다 — 별도 포트·프로세스 불필요.
+동일한 게이트웨이가 `/mcp` 경로에서 **MCP 서버**(HTTP transport)로도 동작한다. 위 REST 라우트가 그대로 MCP tool로 노출된다 — 별도 포트·프로세스 불필요. 단, `/pages/download`는 파일 다운로드 전용이라 tool로 노출하지 않는다 (`get_page_by_uuid`가 같은 내용을 준다).
 
 | MCP tool | 매핑 REST | 인증 |
 |---|---|---|
