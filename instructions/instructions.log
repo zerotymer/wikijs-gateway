@@ -22,4 +22,5 @@ f8363f94-7f73-4a73-bae4-75e9e38d585c | Step 8: 역할 기반 인증 분리 (읽�
 710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T00:00:00Z | created
 710ef22b-69b7-4ee9-80d2-bf394c33b35b | Step 9: MCP 서버 기능 추가 (게이트웨이를 MCP 클라이언트에 직접 노출) | 2026-06-28T01:00:00Z | completed
 36f02a09-5945-49bd-8f84-ec1de698c443 | feat: GET /pages/download — uuid로 markdown 원문 파일 다운로드 (curl 단독, jq 불필요) | 2026-08-17T00:00:00Z | created
+2d68d82d-c12d-49e3-b945-1a526fd0fba4 | fastapi-mcp → fastmcp 이전 (mcp 2.x, legacy SDK 탈출) | 2026-08-17T09:40:00Z | created
 36f02a09-5945-49bd-8f84-ec1de698c443 | feat: GET /pages/download — uuid로 markdown 원문 파일 다운로드 (curl 단독, jq 불필요) | 2026-08-17T09:50:00Z | completed (PR #10 merged)
