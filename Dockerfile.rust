@@ -1,0 +1,32 @@
+# Rust implementation of wikijs-gateway (API v2). Image tag: 2.x.y-rust
+# Build: docker build -f Dockerfile.rust -t wikijs-gateway:2.0.0-rust .
+
+FROM rust:1.97-bookworm AS build
+WORKDIR /src
+
+# Cache dependencies separately from sources.
+COPY rust/Cargo.toml rust/Cargo.lock ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && echo '' > src/lib.rs \
+    && cargo build --release --locked \
+    && rm -rf src
+
+COPY rust/src ./src
+RUN touch src/main.rs src/lib.rs && cargo build --release --locked
+
+FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.source="https://github.com/zerotymer/wikijs-gateway"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /audit && chown 65534:65534 /audit
+
+COPY --from=build /src/target/release/wikijs-gateway /usr/local/bin/wikijs-gateway
+
+# Same runtime UID/GID as the Python image (nobody:nogroup) so the /audit volume is shared.
+USER 65534:65534
+
+EXPOSE 8080
+
+CMD ["/usr/local/bin/wikijs-gateway"]
