@@ -3,15 +3,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 
+class LiveResponse(BaseModel):
+    ok: bool
+
+
 class HealthResponse(BaseModel):
     ok: bool
     wikijsReachable: bool
-
-
-class ErrorResponse(BaseModel):
-    ok: bool = False
-    error: str
-    message: str
 
 
 class PageResponse(BaseModel):
@@ -29,12 +27,6 @@ class PageResponse(BaseModel):
     tags: list[str]
     scriptCss: str | None = None
     scriptJs: str | None = None
-
-
-class WikiJsErrorResponse(BaseModel):
-    ok: bool = False
-    error: str
-    details: list[dict] = []
 
 
 class PatchOperation(BaseModel):
@@ -56,13 +48,6 @@ class DryRunResponse(BaseModel):
     ok: bool
     changed: bool
     diff: str
-    newHash: str
-
-
-class PageChangedResponse(BaseModel):
-    ok: bool = False
-    error: str = "PAGE_CHANGED"
-    currentHash: str
 
 
 class PatchSectionRequest(BaseModel):
@@ -76,8 +61,10 @@ class PatchSectionResponse(BaseModel):
     ok: bool
     changed: bool
     diff: str
-    newHash: str
+    # Hash of the page as re-read after the write; null when the refetch failed.
+    contentHash: str | None
     pageId: int
+    refetchFailed: bool = False
 
 
 class UpsertRequest(BaseModel):
@@ -90,6 +77,8 @@ class UpsertRequest(BaseModel):
     isPublished: bool = True
     isPrivate: bool = False
     tags: list[str] = []
+    # Required when the page already exists (428 if missing, 409 on mismatch).
+    baseHash: str | None = None
 
 
 class UpsertResponse(BaseModel):
@@ -97,6 +86,8 @@ class UpsertResponse(BaseModel):
     created: bool
     pageId: int
     path: str
+    contentHash: str | None
+    refetchFailed: bool = False
 
 
 class SearchResultItem(BaseModel):
