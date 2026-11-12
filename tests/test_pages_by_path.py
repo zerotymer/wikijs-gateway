@@ -45,7 +45,7 @@ def test_get_page_by_path_success():
     mock.get_page_by_path.return_value = _SAMPLE_PAGE
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-path", params={"path": "agent/test-page"})
+        resp = client.get("/api/v2/pages", params={"path": "agent/test-page"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == 42
@@ -60,7 +60,7 @@ def test_get_page_by_path_uses_default_locale():
     mock.get_page_by_path.return_value = _SAMPLE_PAGE
     client = _setup(mock)
     try:
-        client.get("/pages/by-path", params={"path": "agent/test-page"})
+        client.get("/api/v2/pages", params={"path": "agent/test-page"})
         mock.get_page_by_path.assert_called_once_with("agent/test-page", "ko")
     finally:
         _teardown()
@@ -71,9 +71,9 @@ def test_get_page_by_path_not_found():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-path", params={"path": "nonexistent"})
+        resp = client.get("/api/v2/pages", params={"path": "nonexistent"})
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
     finally:
         _teardown()
 
@@ -83,9 +83,9 @@ def test_get_page_by_path_wikijs_error():
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "PageViewForbidden"}])
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-path", params={"path": "some/page"})
+        resp = client.get("/api/v2/pages", params={"path": "some/page"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-error"
     finally:
         _teardown()
 
@@ -97,8 +97,8 @@ def test_get_page_by_path_network_error():
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-path", params={"path": "some/page"})
+        resp = client.get("/api/v2/pages", params={"path": "some/page"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_UNREACHABLE"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-unreachable"
     finally:
         _teardown()

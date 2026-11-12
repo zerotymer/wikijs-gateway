@@ -50,7 +50,7 @@ def test_download_defaults_to_type_uppercase_and_ko():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={"type": "skill"})
         assert resp.status_code == 200
         assert resp.text == _CONTENT
         assert resp.headers["content-type"] == "text/markdown; charset=utf-8"
@@ -66,7 +66,7 @@ def test_download_locale_selects_content_but_not_filename():
     client = _setup(mock)
     try:
         resp = client.get(
-            "/pages/download", params={"uuid": _UUID, "type": "skill", "locale": "en"}
+            f"/api/v2/documents/{_UUID}/raw", params={"type": "skill", "locale": "en"}
         )
         assert resp.status_code == 200
         # locale never leaks into the filename — the caller renames via `filename`
@@ -82,7 +82,7 @@ def test_download_explicit_filename():
     client = _setup(mock)
     try:
         resp = client.get(
-            "/pages/download", params={"uuid": _UUID, "type": "skill", "filename": "SKILL_ko"}
+            f"/api/v2/documents/{_UUID}/raw", params={"type": "skill", "filename": "SKILL_ko"}
         )
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="SKILL_ko.md"'
@@ -96,8 +96,8 @@ def test_download_filename_with_md_suffix_is_not_doubled():
     client = _setup(mock)
     try:
         resp = client.get(
-            "/pages/download",
-            params={"uuid": _UUID, "type": "skill", "filename": "SKILL_ko.md"},
+            f"/api/v2/documents/{_UUID}/raw",
+            params={"type": "skill", "filename": "SKILL_ko.md"},
         )
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="SKILL_ko.md"'
@@ -111,7 +111,7 @@ def test_download_resolves_type_without_type_param():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={})
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="SKILL.md"'
         mock.find_path_by_uuid.assert_called_once_with(_UUID)
@@ -125,7 +125,7 @@ def test_download_unresolved_type_falls_back_to_noname():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale, path=_UUID)
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={})
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="noname.md"'
     finally:
@@ -137,13 +137,13 @@ def test_download_rejects_unsafe_filenames():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
-        for bad in ['a"; x', "../etc/passwd", "a/b", "sk\nill", "한글", "x" * 65, ".md"]:
+        for bad in ['a"; x', "../etc/passwd", "a/b", "sk\nill", "한글", "x" * 65, ".md", "skill\n"]:
             resp = client.get(
-                "/pages/download",
-                params={"uuid": _UUID, "type": "skill", "filename": bad},
+                f"/api/v2/documents/{_UUID}/raw",
+                params={"type": "skill", "filename": bad},
             )
             assert resp.status_code == 422, bad
-            assert resp.json()["detail"]["error"] == "INVALID_FILENAME", bad
+            assert resp.json()["type"] == "urn:wikijs-gateway:problem:validation-error", bad
         mock.get_page_by_path.assert_not_called()
     finally:
         _teardown()
@@ -156,7 +156,7 @@ def test_download_rejects_unsafe_type_derived_filename():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale, path=path)
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={})
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="noname.md"'
     finally:
@@ -168,10 +168,10 @@ def test_download_missing_page_returns_404():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={"type": "skill"})
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
-        assert resp.json()["detail"]["locale"] == "ko"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
+        assert resp.json()["locale"] == "ko"
     finally:
         _teardown()
 
@@ -181,9 +181,9 @@ def test_download_wikijs_error_propagates():
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "forbidden"}])
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={"type": "skill"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-error"
     finally:
         _teardown()
 
@@ -193,9 +193,9 @@ def test_download_network_error_propagates():
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:
-        resp = client.get("/pages/download", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={"type": "skill"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_UNREACHABLE"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-unreachable"
     finally:
         _teardown()
 

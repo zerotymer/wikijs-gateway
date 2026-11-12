@@ -53,7 +53,7 @@ def test_bulk_fetch_all_found():
     client = _setup(mock)
     try:
         resp = client.post(
-            "/pages/by-paths",
+            "/api/v2/pages/batch-get",
             json={"paths": [{"path": "/agent/page1", "locale": "ko"}, {"path": "/agent/page2"}]},
         )
         assert resp.status_code == 200
@@ -74,7 +74,7 @@ def test_bulk_fetch_partial_not_found():
     client = _setup(mock)
     try:
         resp = client.post(
-            "/pages/by-paths",
+            "/api/v2/pages/batch-get",
             json={"paths": [{"path": "/agent/page1"}, {"path": "/agent/missing"}]},
         )
         assert resp.status_code == 200
@@ -98,12 +98,13 @@ def test_bulk_fetch_too_large():
     client = _setup(mock)
     try:
         resp = client.post(
-            "/pages/by-paths",
+            "/api/v2/pages/batch-get",
             json={"paths": [{"path": f"/agent/p{i}"} for i in range(4)]},
         )
         assert resp.status_code == 422
-        detail = resp.json()["detail"]
-        assert detail["error"] == "BATCH_TOO_LARGE"
+        assert resp.headers["content-type"] == "application/problem+json"
+        detail = resp.json()
+        assert detail["type"] == "urn:wikijs-gateway:problem:validation-error"
         assert detail["received"] == 4
         assert detail["limit"] == 3
     finally:

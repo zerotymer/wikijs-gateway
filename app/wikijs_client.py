@@ -1,6 +1,7 @@
 import httpx
 
 from app.locking import compute_hash
+from app.middleware import current_traceparent
 from app.models import PageResponse
 
 _QUERY_GET_PAGE_BY_PATH = """
@@ -120,6 +121,12 @@ def _normalize_path(path: str) -> str:
     return path.lstrip("/")
 
 
+def _trace_headers() -> dict[str, str]:
+    """Forward the caller's W3C traceparent (if any) to Wiki.js."""
+    tp = current_traceparent.get()
+    return {"traceparent": tp} if tp else {}
+
+
 class WikiJsError(Exception):
     def __init__(self, errors: list[dict]) -> None:
         self.errors = errors
@@ -145,6 +152,7 @@ class WikiJsClient:
         resp = await self._client.post(
             self._graphql_url,
             json={"query": _QUERY_GET_PAGE_BY_PATH, "variables": {"path": _normalize_path(path), "locale": locale}},
+            headers=_trace_headers(),
         )
         resp.raise_for_status()
         body = resp.json()
@@ -194,6 +202,7 @@ class WikiJsClient:
         resp = await self._write_client.post(
             self._graphql_url,
             json={"query": _MUTATION_UPDATE_PAGE, "variables": variables},
+            headers=_trace_headers(),
         )
         resp.raise_for_status()
         body = resp.json()
@@ -230,6 +239,7 @@ class WikiJsClient:
         resp = await self._write_client.post(
             self._graphql_url,
             json={"query": _MUTATION_CREATE_PAGE, "variables": variables},
+            headers=_trace_headers(),
         )
         resp.raise_for_status()
         body = resp.json()
@@ -240,47 +250,6 @@ class WikiJsClient:
             raise WikiJsError([result["responseResult"]])
         return result
 
-    async def upsert_page(
-        self,
-        path: str,
-        locale: str,
-        title: str,
-        description: str,
-        content: str,
-        editor: str = "markdown",
-        is_published: bool = True,
-        is_private: bool = False,
-        tags: list[str] | None = None,
-    ) -> tuple[dict, bool]:
-        existing = await self.get_page_by_path(path, locale)
-        if existing is not None:
-            result = await self.update_page(
-                existing,
-                content,
-                metadata_overrides={
-                    "title": title,
-                    "description": description,
-                    "editor": editor,
-                    "isPublished": is_published,
-                    "isPrivate": is_private,
-                    "tags": tags or [],
-                },
-            )
-            return result, False
-        else:
-            result = await self.create_page(
-                path=path,
-                locale=locale,
-                title=title,
-                description=description,
-                content=content,
-                editor=editor,
-                is_published=is_published,
-                is_private=is_private,
-                tags=tags,
-            )
-            return result, True
-
     async def search_pages(self, query: str, locale: str | None = None) -> dict:
         variables: dict = {"query": query}
         if locale:
@@ -288,6 +257,7 @@ class WikiJsClient:
         resp = await self._client.post(
             self._graphql_url,
             json={"query": _QUERY_SEARCH_PAGES, "variables": variables},
+            headers=_trace_headers(),
         )
         resp.raise_for_status()
         body = resp.json()
@@ -306,6 +276,7 @@ class WikiJsClient:
         resp = await self._client.post(
             self._graphql_url,
             json={"query": _QUERY_LIST_PAGES},
+            headers=_trace_headers(),
         )
         resp.raise_for_status()
         body = resp.json()

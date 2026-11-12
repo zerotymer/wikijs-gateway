@@ -19,6 +19,7 @@ class AuditRecord:
     new_hash: str | None
     diff: str
     wikijs_result: dict | None
+    traceparent: str | None = None
 
 
 def _path_slug(path: str) -> str:

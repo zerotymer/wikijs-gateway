@@ -53,7 +53,7 @@ def test_by_uuid_both_locales():
     )
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "skill"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["uuid"] == _UUID
@@ -73,7 +73,7 @@ def test_by_uuid_only_en_exists():
     )
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "skill"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["pages"]["en"] is not None
@@ -87,10 +87,10 @@ def test_by_uuid_neither_exists_returns_404():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "skill"})
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
-        assert resp.json()["detail"]["uuid"] == _UUID
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
+        assert resp.json()["uuid"] == _UUID
     finally:
         _teardown()
 
@@ -104,7 +104,7 @@ def test_by_uuid_without_type():
     )
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={})
         assert resp.status_code == 200
         data = resp.json()
         assert data["type"] == "skill"
@@ -123,7 +123,7 @@ def test_by_uuid_without_type_bare_path():
     )
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={})
         assert resp.status_code == 200
         data = resp.json()
         assert data["type"] is None
@@ -139,10 +139,10 @@ def test_by_uuid_without_type_search_not_found():
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={})
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "PAGE_NOT_FOUND"
-        assert resp.json()["detail"]["uuid"] == _UUID
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
+        assert resp.json()["uuid"] == _UUID
     finally:
         _teardown()
 
@@ -152,9 +152,9 @@ def test_by_uuid_wikijs_error_propagates():
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "forbidden"}])
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "skill"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-error"
     finally:
         _teardown()
 
@@ -164,8 +164,8 @@ def test_by_uuid_network_error_propagates():
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:
-        resp = client.get("/pages/by-uuid", params={"uuid": _UUID, "type": "skill"})
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "skill"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_UNREACHABLE"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-unreachable"
     finally:
         _teardown()

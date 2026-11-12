@@ -52,7 +52,7 @@ def test_search_returns_results():
     mock.search_pages.return_value = _SAMPLE_SEARCH_DATA
     client = _setup(mock)
     try:
-        resp = client.get("/pages/search", params={"query": "deploy"})
+        resp = client.get("/api/v2/pages/search", params={"q": "deploy"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["ok"] is True
@@ -70,7 +70,7 @@ def test_search_limit():
     mock.search_pages.return_value = _SAMPLE_SEARCH_DATA
     client = _setup(mock)
     try:
-        resp = client.get("/pages/search", params={"query": "deploy", "limit": 1})
+        resp = client.get("/api/v2/pages/search", params={"q": "deploy", "limit": 1})
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["results"]) == 1
@@ -84,9 +84,9 @@ def test_search_wikijs_error():
     mock.search_pages.side_effect = WikiJsError([{"message": "SearchError"}])
     client = _setup(mock)
     try:
-        resp = client.get("/pages/search", params={"query": "deploy"})
+        resp = client.get("/api/v2/pages/search", params={"q": "deploy"})
         assert resp.status_code == 502
-        assert resp.json()["detail"]["error"] == "WIKIJS_ERROR"
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:wikijs-error"
     finally:
         _teardown()
 
@@ -96,7 +96,7 @@ def test_search_uses_default_locale():
     mock.search_pages.return_value = {**_SAMPLE_SEARCH_DATA, "results": []}
     client = _setup(mock)
     try:
-        client.get("/pages/search", params={"query": "test"})
+        client.get("/api/v2/pages/search", params={"q": "test"})
         mock.search_pages.assert_called_once_with("test", "ko")
     finally:
         _teardown()
@@ -107,7 +107,7 @@ def test_search_locale_override():
     mock.search_pages.return_value = {**_SAMPLE_SEARCH_DATA, "results": []}
     client = _setup(mock)
     try:
-        client.get("/pages/search", params={"query": "test", "locale": "en"})
+        client.get("/api/v2/pages/search", params={"q": "test", "locale": "en"})
         mock.search_pages.assert_called_once_with("test", "en")
     finally:
         _teardown()

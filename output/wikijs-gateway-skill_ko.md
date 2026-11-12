@@ -34,17 +34,17 @@ GATEWAY_TOKEN=<읽기-토큰>
 
 모든 요청에 `Authorization: Bearer $GATEWAY_TOKEN` 헤더를 사용한다.
 
-> **MCP 대안**: 게이트웨이는 `$GATEWAY_URL/mcp`에서 MCP 서버(HTTP transport)로도
+> **MCP 대안**: 게이트웨이는 `$GATEWAY_URL/api/v2/mcp`에서 MCP 서버(Streamable HTTP)로도
 > 동작한다. 아래 fetch는 `get_page_by_uuid` MCP tool에 대응한다 — 인증 모델 동일
 > (read tool은 토큰 불필요, admin tool은 Bearer 토큰 필요). 클라이언트가 지원하는
 > 인터페이스를 쓰면 되며, 여기 기술한 REST 방식이 정본이다.
 
 ## 가져오기 전략
 
-게이트웨이의 `GET /pages/by-uuid`를 사용한다. 게이트웨이는 각 locale별로 원본 Markdown `content`, `title`, `description`, `locale`, `path`, `contentHash`를 포함한 구조화된 JSON을 반환한다. HTML 스크래핑이나 GraphQL 스키마 탐색이 필요 없다.
+게이트웨이의 `GET /api/v2/documents/{uuid}`를 사용한다. 게이트웨이는 각 locale별로 원본 Markdown `content`, `title`, `description`, `locale`, `path`, `contentHash`를 포함한 구조화된 JSON을 반환한다. HTML 스크래핑이나 GraphQL 스키마 탐색이 필요 없다.
 
 ```
-GET $GATEWAY_URL/pages/by-uuid?uuid=<uuid>[&type=<type>]
+GET $GATEWAY_URL/api/v2/documents/<uuid>[?type=<type>]
 Authorization: Bearer $GATEWAY_TOKEN
 ```
 
@@ -54,14 +54,14 @@ Authorization: Bearer $GATEWAY_TOKEN
 
 ### 파일 직접 다운로드
 
-`GET /pages/download`는 JSON 대신 Markdown 원문을 반환하므로 `jq` 없이 `curl` 단독으로 파일을 기록할 수 있다. `title`/`tags`/`contentHash`가 필요 없고 디스크에 파일만 있으면 될 때 사용한다.
+`GET /api/v2/documents/{uuid}/raw`는 JSON 대신 Markdown 원문을 반환하므로 `jq` 없이 `curl` 단독으로 파일을 기록할 수 있다. `title`/`tags`/`contentHash`가 필요 없고 디스크에 파일만 있으면 될 때 사용한다.
 
 ```bash
-curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=en"                   # → SKILL.md
-curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" # → SKILL_ko.md
+curl -fOJ "$GATEWAY_URL/api/v2/documents/<uuid>/raw?locale=en"                   # → SKILL.md
+curl -fOJ "$GATEWAY_URL/api/v2/documents/<uuid>/raw?locale=ko&filename=SKILL_ko" # → SKILL_ko.md
 ```
 
-파일명 기본값은 해석된 type을 대문자화한 값(`skill` → `SKILL.md`)이며, 해석에 실패하면 `noname.md`다. `locale`은 **내용만** 선택하고 파일명에는 반영되지 않으므로, 위 두 번째 호출은 `filename`을 지정하지 않으면 첫 번째와 파일명이 겹친다. `filename`은 확장자 없는 base name이고(`^[A-Za-z0-9._-]{1,64}$`) 확장자는 항상 `.md`로 고정된다. `-f`를 반드시 붙인다 — 없으면 404 JSON 본문이 그대로 파일에 기록된다.
+파일명 기본값은 해석된 type을 대문자화한 값(`skill` → `SKILL.md`)이며, 해석에 실패하면 `noname.md`다. `locale`은 **내용만** 선택하고 파일명에는 반영되지 않으므로, 위 두 번째 호출은 `filename`을 지정하지 않으면 첫 번째와 파일명이 겹친다. `filename`은 확장자 없는 base name이고(`^[A-Za-z0-9._-]{1,64}$`) 확장자는 항상 `.md`로 고정된다. `-f`를 반드시 붙인다 — 없으면 404 problem+json 본문이 그대로 파일에 기록된다.
 
 이 라우트는 MCP tool로 노출되지 않는다 — MCP 클라이언트에는 `get_page_by_uuid`가 이미 같은 내용을 반환한다.
 
@@ -86,15 +86,15 @@ curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" 
 2. 사용자에게 선택적 `type` 인자를 받는다(예: `skill`, `guide`, `agent`). 제공하지 않으면 비워둔다 — 임의로 기본값을 넣지 않는다.
 3. 게이트웨이를 호출한다.
    ```bash
-   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" \
+   curl -s "$GATEWAY_URL/api/v2/documents/<uuid>?type=<type>" \
      -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
-   # type을 제공하지 않은 경우 &type=<type> 생략
+   # type을 제공하지 않은 경우 ?type=<type> 생략
    ```
 4. 응답을 파싱한다.
    - `pages.en` — 영어 페이지 (`null`일 수 있음)
    - `pages.ko` — 한국어 페이지 (`null`일 수 있음)
    - 각 페이지 객체에는 `content`(Markdown 원본), `title`, `description`, `locale`, `path`, `tags`, `contentHash` 포함
-5. `pages.en`과 `pages.ko`가 모두 `null`이면 중단하고 `PAGE_NOT_FOUND`를 보고한다.
+5. `pages.en`과 `pages.ko`가 모두 `null`이면 중단하고 `page-not-found`를 보고한다.
 6. 영어 `content`의 frontmatter `name:` 필드에서 스킬 이름을 추출한다. frontmatter가 없으면 `title`을 slug 형태로 변환해 사용한다.
 7. `name`을 `<skill-name>`으로 사용한다.
 8. 영어 콘텐츠를 `skills/<skill-name>/SKILL.md`에 기록한다.
@@ -109,7 +109,7 @@ curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" 
 사용자가 `LLM-wiki <uuid> 참고해줘` 같은 프롬프트로 현재 작업에서 Wiki.js 스킬을 참조하라고 요청하면 이 워크플로를 사용한다.
 
 1. 사용자가 UUID를 제공했는지 확인한다.
-2. UUID(와 type이 있으면 함께)를 사용해 게이트웨이의 `GET /pages/by-uuid`를 호출한다.
+2. UUID(와 type이 있으면 함께)를 사용해 게이트웨이의 `GET /api/v2/documents/{uuid}`를 호출한다.
 3. 가져온 `content` 필드를 작업 로컬 컨텍스트로 사용한다.
 4. 가져온 지침이 관련 있고 더 높은 우선순위의 system, developer, project 지침과 충돌하지 않을 때 따른다.
 5. 어떤 UUID를 참조했는지, 어떤 locale이 있었는지 짧게 보고한다.
@@ -150,9 +150,10 @@ locale 값이 `null`이면 해당 locale 페이지가 존재하지 않는 것이
 
 | 상황 | 대응 |
 |------|------|
-| 게이트웨이 연결 실패 | `curl $GATEWAY_URL/health`로 진단; 진행 중단 |
+| 게이트웨이 연결 실패 | `curl -si $GATEWAY_URL/api/v2/openapi.json` (`X-Served-By: wikijs-gateway` 헤더 확인)로 진단; 진행 중단 |
 | 401 / 403 | `GATEWAY_TOKEN`이 올바르게 설정되었는지 확인 |
-| 두 locale 모두 404 | uuid에 대해 `PAGE_NOT_FOUND` 보고; 사용자가 best-effort를 요청하지 않으면 중단 |
+| 두 locale 모두 404 | uuid에 대해 `page-not-found` 보고; 사용자가 best-effort를 요청하지 않으면 중단 |
 | 한 locale만 404 | 가능한 locale을 작성; 파일 헤더에 누락된 locale 기록 |
+| 기타 4xx/5xx | 본문은 `application/problem+json`; 오류 코드는 `type`의 접미사 (`urn:wikijs-gateway:problem:<code>`) |
 | `content`가 비어 있음 | 사용자에게 경고; 빈 스킬 파일 작성 금지 |
 | frontmatter에 `name` 없음 | `title`을 slug 변환해 스킬 이름으로 사용; 사용자에게 경고 |
