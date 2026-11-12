@@ -213,6 +213,7 @@ Gateway는 `127.0.0.1:8088`에만 bind한다. 기존 Wiki.js service를 수정�
 | `710ef22b-69b7-4ee9-80d2-bf394c33b35b` | [step9-mcp-server.md](instructions/.completed/710ef22b-69b7-4ee9-80d2-bf394c33b35b.md) | completed |
 | `36f02a09-5945-49bd-8f84-ec1de698c443` | [pages-download](instructions/.completed/36f02a09-5945-49bd-8f84-ec1de698c443.md) | completed |
 | `2d68d82d-c12d-49e3-b945-1a526fd0fba4` | [fastmcp-migration](instructions/2d68d82d-c12d-49e3-b945-1a526fd0fba4.md) | in_progress |
+| `51c7fd87-18e0-4a01-8e43-8108bc218095` | [api-v2-contract](instructions/51c7fd87-18e0-4a01-8e43-8108bc218095.md) | draft |
 
 
 ## 개발 규칙
