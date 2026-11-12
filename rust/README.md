@@ -1,6 +1,6 @@
 # wikijs-gateway — Rust판 (Axum + rmcp)
 
-FastAPI판과 같은 API v2 계약(`instructions/.../51c7fd87-…md`)을 구현한 drop-in 대체.
+FastAPI판과 같은 API v2 계약(`instructions/51c7fd87-18e0-4a01-8e43-8108bc218095.md`)을 구현한 drop-in 대체.
 경로·JSON·상태 코드·problem+json·audit 형식·포트(8080)·환경 변수가 같다. 이미지 태그 `2.x.y-rust`.
 
 ## 빌드·테스트
