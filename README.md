@@ -227,6 +227,7 @@ docker compose -f docker-compose.gateway.yml logs -f
 | `WIKIJS_API_TOKEN` | ✅ | Wiki.js API token (read:pages, read:source, write:pages 권한 필요) |
 | `GATEWAY_ADMIN_TOKEN` | ✅ | 쓰기 엔드포인트 인증용 bearer token |
 | `AUDIT_DIR` | ❌ | audit log 디렉터리 (기본: `/audit`) |
+| `BATCH_MAX_SIZE` | ❌ | `batch-get` 최대 path 수 (기본: `50`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 render 호출 여부 (기본: `false`) |
 
 ## Rollback

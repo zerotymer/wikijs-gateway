@@ -137,7 +137,7 @@ def test_download_rejects_unsafe_filenames():
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
-        for bad in ['a"; x', "../etc/passwd", "a/b", "sk\nill", "한글", "x" * 65, ".md"]:
+        for bad in ['a"; x', "../etc/passwd", "a/b", "sk\nill", "한글", "x" * 65, ".md", "skill\n"]:
             resp = client.get(
                 f"/api/v2/documents/{_UUID}/raw",
                 params={"type": "skill", "filename": bad},

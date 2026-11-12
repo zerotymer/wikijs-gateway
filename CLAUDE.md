@@ -103,7 +103,7 @@ API v2 (지시서 `51c7fd87`). 공개 라우트는 모두 `APIRouter(prefix="/ap
 |---|---|---|---|---|
 | `GET` | `/api/v2/pages?path=&locale=` | 없음 | `get_page_by_path` | path + locale로 page 조회, `ETag` |
 | `GET` | `/api/v2/pages/search?q=&locale=&limit=` | 없음 | `search_pages` | 키워드 검색 |
-| `POST` | `/api/v2/pages/batch-get` | 없음 | `get_pages_by_paths` | 다건 page 조회 (최대 `_BATCH_MAX_SIZE`) |
+| `POST` | `/api/v2/pages/batch-get` | 없음 | `get_pages_by_paths` | 다건 page 조회 (최대 `BATCH_MAX_SIZE`) |
 | `PUT` | `/api/v2/pages` | GATEWAY_ADMIN_TOKEN | `upsert_page` | 생성 201 / 수정 200, 수정 시 `baseHash` 필수 |
 | `POST` | `/api/v2/pages/patches` | GATEWAY_ADMIN_TOKEN | `patch_section` | section 단위 patch |
 | `POST` | `/api/v2/pages/patches/preview` | GATEWAY_ADMIN_TOKEN | `dry_run_patch` | patch diff만 반환, 쓰기 없음, audit 기록 |
@@ -135,6 +135,7 @@ API v2 (지시서 `51c7fd87`). 공개 라우트는 모두 `APIRouter(prefix="/ap
 | `WIKIJS_API_TOKEN` | ✅ | Wiki.js 전용 API token |
 | `GATEWAY_ADMIN_TOKEN` | ✅ | 쓰기 엔드포인트 인증용 bearer token |
 | `AUDIT_DIR` | ❌ | patch log 저장 디렉터리 (기본: `/audit`) |
+| `BATCH_MAX_SIZE` | ❌ | `batch-get` 최대 path 수 (기본: `50`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 `pages.render` 호출 여부 (기본: `false`) |
 
 `.env`, `.env.*` 파일은 **절대 커밋하지 않는다**. `.env.example`만 커밋.

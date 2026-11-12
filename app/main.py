@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -48,9 +49,9 @@ logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v2"
 _DEFAULT_LOCALE = "ko"
-_BATCH_MAX_SIZE = 50
+_BATCH_MAX_SIZE = int(os.environ.get("BATCH_MAX_SIZE", "50"))
 _BATCH_CONCURRENCY = 10
-_AUDIT_DIR = "/audit"
+_AUDIT_DIR = os.environ.get("AUDIT_DIR", "/audit")
 _REFETCH_WARNING = '199 - "refetch failed"'
 
 T = TypeVar("T")
@@ -239,7 +240,7 @@ async def download_page(
     if filename:
         # ponytail: extension is always .md, but tolerate callers passing it anyway
         base = filename[:-3] if filename.endswith(".md") else filename
-        if not _FILENAME_RE.match(base) or ".." in base:
+        if not _FILENAME_RE.fullmatch(base) or ".." in base:
             raise ProblemError(422, "validation-error", "Invalid filename", filename=filename)
 
     path, resolved_type = await _resolve_uuid_path(uuid, type, client)
@@ -249,7 +250,7 @@ async def download_page(
         raise ProblemError(404, "page-not-found", uuid=uuid, locale=effective_locale)
 
     if not base:
-        base = resolved_type.upper() if resolved_type and _FILENAME_RE.match(resolved_type) else "noname"
+        base = resolved_type.upper() if resolved_type and _FILENAME_RE.fullmatch(resolved_type) else "noname"
 
     return PlainTextResponse(
         page.content,
