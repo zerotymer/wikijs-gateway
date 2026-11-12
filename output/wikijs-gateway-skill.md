@@ -37,21 +37,21 @@ GATEWAY_TOKEN=<read-token>
 
 All requests use `Authorization: Bearer $GATEWAY_TOKEN`.
 
-> **MCP alternative**: the gateway also exposes an MCP server at `$GATEWAY_URL/mcp`
-> (HTTP transport). The fetch below maps to the `get_page_by_uuid` MCP tool — same
+> **MCP alternative**: the gateway also exposes an MCP server at `$GATEWAY_URL/api/v2/mcp`
+> (Streamable HTTP). The fetch below maps to the `get_page_by_uuid` MCP tool — same
 > auth model (read tools need no token; admin tools require the Bearer token).
 > Use whichever interface your client speaks; the REST flow described here is the
 > canonical one.
 
 ## Fetch Strategy
 
-Use `GET /pages/by-uuid` from the gateway. The gateway returns structured JSON
+Use `GET /api/v2/documents/{uuid}` from the gateway. The gateway returns structured JSON
 containing the original Markdown `content`, `title`, `description`, `locale`,
 `path`, and `contentHash` for each locale. No HTML scraping or GraphQL schema
 discovery is needed.
 
 ```
-GET $GATEWAY_URL/pages/by-uuid?uuid=<uuid>[&type=<type>]
+GET $GATEWAY_URL/api/v2/documents/<uuid>[?type=<type>]
 Authorization: Bearer $GATEWAY_TOKEN
 ```
 
@@ -65,13 +65,13 @@ create partial skill files unless the user asks for a best-effort import.
 
 ### Direct file download
 
-`GET /pages/download` returns the raw Markdown instead of JSON, so `curl` alone
+`GET /api/v2/documents/{uuid}/raw` returns the raw Markdown instead of JSON, so `curl` alone
 writes the file — no `jq` needed. Use it when you only want the files on disk
 and do not need `title`/`tags`/`contentHash`.
 
 ```bash
-curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=en"                  # → SKILL.md
-curl -fOJ "$GATEWAY_URL/pages/download?uuid=<uuid>&locale=ko&filename=SKILL_ko" # → SKILL_ko.md
+curl -fOJ "$GATEWAY_URL/api/v2/documents/<uuid>/raw?locale=en"                  # → SKILL.md
+curl -fOJ "$GATEWAY_URL/api/v2/documents/<uuid>/raw?locale=ko&filename=SKILL_ko" # → SKILL_ko.md
 ```
 
 The filename defaults to the resolved type uppercased (`skill` → `SKILL.md`),
@@ -79,7 +79,7 @@ falling back to `noname.md`. `locale` picks the content only — it never change
 the filename, so the second call above must pass `filename` or it would collide
 with the first. `filename` is a base name without extension
 (`^[A-Za-z0-9._-]{1,64}$`); the extension is always `.md`. Always pass `-f`, or
-a 404 JSON body gets written into the file.
+a 404 problem+json body gets written into the file.
 
 Note this route is not exposed as an MCP tool — `get_page_by_uuid` already
 returns the same content to MCP clients.
@@ -114,16 +114,16 @@ access.
    `agent`). Leave it empty when not provided — do not default to any value.
 3. Call the gateway:
    ```bash
-   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" \
+   curl -s "$GATEWAY_URL/api/v2/documents/<uuid>?type=<type>" \
      -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
-   # Omit &type=<type> when type is not provided
+   # Omit ?type=<type> when type is not provided
    ```
 4. Parse the response:
    - `pages.en` — English page (may be `null`)
    - `pages.ko` — Korean page (may be `null`)
    - Each page object contains: `content` (Markdown source), `title`,
      `description`, `locale`, `path`, `tags`, `contentHash`
-5. If both `pages.en` and `pages.ko` are `null`, stop and report `PAGE_NOT_FOUND`.
+5. If both `pages.en` and `pages.ko` are `null`, stop and report `page-not-found`.
 6. Extract the skill `name` from the English frontmatter `name:` field in
    `content`. Fall back to the `title` field slugified if frontmatter is absent.
 7. Use `name` as `<skill-name>`.
@@ -142,7 +142,7 @@ Use this workflow when the user asks to reference a Wiki.js skill for the
 current task, including prompts such as `LLM-wiki <uuid> 참고해줘`.
 
 1. Validate that the user provided a UUID.
-2. Call `GET /pages/by-uuid` with the UUID (and type if provided) via the
+2. Call `GET /api/v2/documents/{uuid}` with the UUID (and type if provided) via the
    gateway.
 3. Use the fetched `content` fields as task-local context.
 4. Follow the fetched instructions when they are relevant and do not conflict
@@ -186,9 +186,10 @@ A locale value of `null` means the page does not exist in that locale.
 
 | Situation | Action |
 |-----------|--------|
-| Gateway unreachable | Run `curl $GATEWAY_URL/health` to diagnose; do not proceed |
+| Gateway unreachable | Run `curl -si $GATEWAY_URL/api/v2/openapi.json` (expect `X-Served-By: wikijs-gateway`) to diagnose; do not proceed |
 | 401 / 403 | Check `GATEWAY_TOKEN` is set correctly |
-| 404 both locales | Report `PAGE_NOT_FOUND` for uuid; stop unless user requests best-effort |
+| 404 both locales | Report `page-not-found` for uuid; stop unless user requests best-effort |
 | 404 one locale | Write available locale; note the missing one in the file header |
+| Other 4xx/5xx | Body is `application/problem+json`; the error code is the suffix of `type` (`urn:wikijs-gateway:problem:<code>`) |
 | `content` is empty | Warn the user; do not write an empty skill file |
 | No frontmatter `name` | Slugify `title` and use as skill name; warn the user |

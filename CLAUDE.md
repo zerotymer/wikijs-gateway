@@ -58,6 +58,8 @@ wikijs-agent-gateway/
     locking.py        # optimistic lock (sha256 hash 계산·검증)
     audit.py          # audit log 파일 기록
     models.py         # pydantic request/response 모델
+    problems.py       # problem+json 오류 계약 (exception handler 일원화)
+    middleware.py     # X-Served-By 헤더, traceparent 수집 (pure ASGI)
   tests/
     test_health.py
     test_pages_by_path.py
@@ -71,6 +73,7 @@ wikijs-agent-gateway/
     test_locking.py
     test_audit.py
     test_mcp_server.py
+    test_v2_contract.py
   Dockerfile
   requirements.txt
   docker-compose.gateway.yml  # 독립 실행 (base compose 불필요)
@@ -94,25 +97,33 @@ wikijs-agent-gateway/
 
 ## API 엔드포인트 요약
 
-| Method | Path | 인증 | 설명 |
-|---|---|---|---|
-| `GET` | `/health` | 없음 | 서비스 상태 + wikijsReachable |
-| `GET` | `/pages/by-path` | 없음 | path + locale로 page 조회 |
-| `GET` | `/pages/by-uuid` | 없음 | UUID로 en+ko 동시 조회 |
-| `GET` | `/pages/download` | 없음 | UUID로 markdown 원문 파일 다운로드 (`curl -fOJ` 전용) |
-| `GET` | `/pages/search` | 없음 | 키워드 검색 |
-| `POST` | `/pages/by-paths` | 없음 | 다건 page 조회 (최대 BATCH_MAX_SIZE) |
-| `POST` | `/pages/dry-run` | GATEWAY_ADMIN_TOKEN | patch diff만 반환, 실제 쓰기 없음 |
-| `POST` | `/pages/patch-section` | GATEWAY_ADMIN_TOKEN | section 단위 patch |
-| `POST` | `/pages/upsert` | GATEWAY_ADMIN_TOKEN | page 생성/수정 |
+API v2 (지시서 `51c7fd87`). 공개 라우트는 모두 `APIRouter(prefix="/api/v2")` 아래. v1 경로(`/pages/*`, `/health`, `/mcp`)는 제거(404).
 
-쓰기 엔드포인트(`dry-run`, `patch-section`, `upsert`)는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
+| Method | Path | 인증 | operation_id (MCP tool) | 설명 |
+|---|---|---|---|---|
+| `GET` | `/api/v2/pages?path=&locale=` | 없음 | `get_page_by_path` | path + locale로 page 조회, `ETag` |
+| `GET` | `/api/v2/pages/search?q=&locale=&limit=` | 없음 | `search_pages` | 키워드 검색 |
+| `POST` | `/api/v2/pages/batch-get` | 없음 | `get_pages_by_paths` | 다건 page 조회 (최대 `_BATCH_MAX_SIZE`) |
+| `PUT` | `/api/v2/pages` | GATEWAY_ADMIN_TOKEN | `upsert_page` | 생성 201 / 수정 200, 수정 시 `baseHash` 필수 |
+| `POST` | `/api/v2/pages/patches` | GATEWAY_ADMIN_TOKEN | `patch_section` | section 단위 patch |
+| `POST` | `/api/v2/pages/patches/preview` | GATEWAY_ADMIN_TOKEN | `dry_run_patch` | patch diff만 반환, 쓰기 없음, audit 기록 |
+| `GET` | `/api/v2/documents/{uuid}?type=` | 없음 | `get_page_by_uuid` | UUID로 en+ko 동시 조회 |
+| `GET` | `/api/v2/documents/{uuid}/raw` | 없음 | (tool 제외) | markdown 원문 파일 다운로드 (`curl -fOJ` 전용) |
+| `GET/POST/DELETE` | `/api/v2/mcp` | 쓰기 tool만 | — | MCP Streamable HTTP |
+| `GET` | `/api/v2/openapi.json` | 없음 | — | OpenAPI (`/docs`, `/redoc` 비활성) |
+| `GET` | `/health/live`, `/health/ready` | 없음 | (tool 제외) | 내부 전용 (prefix 밖, proxy 대상 아님) |
 
-`/pages/download`만 JSON이 아니라 `text/markdown` 원문을 반환한다 (`Content-Disposition: attachment`). 파일명은 `filename` 파라미터(확장자 없는 base name, `^[A-Za-z0-9._-]{1,64}$`) 또는 해석된 type 대문자화(`skill` → `SKILL.md`), 실패 시 `noname.md`. 확장자는 `.md` 고정이고 `locale`은 내용만 고르며 파일명에는 반영하지 않는다. 자세한 사용법은 README 참고.
+쓰기 엔드포인트(`patches`, `patches/preview`, `PUT /pages`)는 `Authorization: Bearer <GATEWAY_ADMIN_TOKEN>` 헤더 필요. 읽기 엔드포인트는 인증 없음.
+
+- 오류는 모두 `application/problem+json` (`app/problems.py`, `type = urn:wikijs-gateway:problem:<code>`). 502 본문에 상류 메시지를 넣지 않는다.
+- 모든 응답에 `X-Served-By: wikijs-gateway` (`app/middleware.py`). `traceparent` 수신 시 audit 기록 + Wiki.js 호출에 전달.
+- 쓰기 경로 첫 segment가 `api`면 422 `reserved-path` (G1).
+
+`/documents/{uuid}/raw`만 JSON이 아니라 `text/markdown` 원문을 반환한다 (`Content-Disposition: attachment`). 파일명은 `filename` 파라미터(확장자 없는 base name, `^[A-Za-z0-9._-]{1,64}$`) 또는 해석된 type 대문자화(`skill` → `SKILL.md`), 실패 시 `noname.md`. 확장자는 `.md` 고정이고 `locale`은 내용만 고르며 파일명에는 반영하지 않는다. 자세한 사용법은 README 참고.
 
 ### MCP 서버 (Step 9)
 
-동일 앱이 `/mcp` 경로에서 MCP 서버(HTTP transport)로도 동작한다. 위 라우트 중 `/health`와 `/pages/download`를 제외한 7개가 `fastapi-mcp`로 MCP tool로 자동 노출된다(`get_page_by_path`, `get_page_by_uuid`, `search_pages`, `get_pages_by_paths`, `dry_run_patch`, `patch_section`, `upsert_page`). 인증은 REST와 동일 — `FastApiMCP(app, headers=["authorization"])`로 Authorization 헤더를 라우트로 forward해 기존 `verify_admin_token`·audit를 그대로 재사용한다(별도 auth 로직 없음). tool 이름 안정화를 위해 각 라우트에 `operation_id`를 명시했다.
+동일 앱이 `/api/v2/mcp` 경로에서 MCP 서버(HTTP transport, `mcp.mount_http(mount_path="/api/v2/mcp")`)로도 동작한다. 위 라우트 중 health와 `/documents/{uuid}/raw`를 제외한 7개가 `fastapi-mcp`로 MCP tool로 자동 노출된다(`get_page_by_path`, `get_page_by_uuid`, `search_pages`, `get_pages_by_paths`, `dry_run_patch`, `patch_section`, `upsert_page`). 인증은 REST와 동일 — `FastApiMCP(app, headers=["authorization", "traceparent"])`로 Authorization 헤더를 라우트로 forward해 기존 `verify_admin_token`·audit를 그대로 재사용한다(별도 auth 로직 없음). tool 이름 안정화를 위해 각 라우트에 `operation_id`를 명시했다.
 
 ---
 
@@ -149,7 +160,11 @@ write:pages
 baseHash = sha256(page.id + "\n" + page.updatedAt + "\n" + page.content)
 ```
 
-쓰기 전 hash가 불일치하면 `PAGE_CHANGED` 에러를 반환한다. Agent는 반드시 재조회 후 재시도해야 한다.
+쓰기 전 hash가 불일치하면 409 `page-changed`(+`currentHash`)를 반환한다 (`patches/preview` 포함). Agent는 반드시 재조회 후 재시도해야 한다.
+
+- 쓰기 성공 후 페이지를 재조회해 실제 `contentHash`를 응답한다 (`newHash` 없음). 재조회 실패 시 200 + `contentHash: null`, `refetchFailed: true`, `Warning` 헤더.
+- `PUT /api/v2/pages`로 기존 페이지 수정 시 `baseHash` 필수 (누락 428, 불일치 409). 생성은 불필요.
+- 검사→쓰기→재조회는 `locking.page_lock(locale, path)`(`asyncio.Lock`) 안에서 직렬화. 단일 인스턴스 전제.
 
 ---
 
