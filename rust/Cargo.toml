@@ -1,0 +1,32 @@
+[package]
+name = "wikijs-gateway"
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[dependencies]
+axum = "=0.8.9"
+http = "=1.5.0"
+regex = "=1.13.1"
+reqwest = { version = "=0.13.5", default-features = false, features = ["json", "rustls"] }
+rmcp = { version = "=3.9.0", features = ["server", "macros", "transport-streamable-http-server"] }
+schemars = "=1.2.3"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = { version = "=1.0.154", features = ["preserve_order"] }
+sha2 = "=0.11.1"
+subtle = "=2.6.1"
+time = { version = "=0.3.55", features = ["formatting", "macros"] }
+tokio = { version = "=1.54.1", features = ["macros", "rt-multi-thread", "sync", "fs", "net", "signal", "time"] }
+tracing = "=0.1.44"
+tracing-subscriber = { version = "=0.3.23", features = ["env-filter"] }
+utoipa = "=6.0.0"
+uuid = { version = "=1.26.1", features = ["v4"] }
+
+[dev-dependencies]
+wiremock = "=0.6.5"
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 1

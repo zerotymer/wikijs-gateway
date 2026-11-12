@@ -53,3 +53,6 @@ Thumbs.db
 
 # Generated SBOM
 sbom.json
+
+# Rust build output
+rust/target/
