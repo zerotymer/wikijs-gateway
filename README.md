@@ -246,6 +246,8 @@ git tag v2.0.1 && git push origin v2.0.1
 
 레지스트리: `ghcr.io/zerotymer/wikijs-gateway`, Docker Hub `<DOCKERHUB_USERNAME>/wikijs-gateway`. Docker Hub 인증은 repo secret `DOCKERHUB_USERNAME`·`DOCKERHUB_TOKEN`. GHCR 패키지는 private repo를 따라 비공개이므로 운영 서버에서 `docker login ghcr.io` 필요.
 
+캐시: 테스트 job은 `actions/cache`(pip, cargo), 이미지 빌드는 GHCR registry 캐시 태그 `buildcache-python`·`buildcache-rust`(배포용 태그 아님).
+
 ## Rollback
 
 ```bash

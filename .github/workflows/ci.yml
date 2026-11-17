@@ -7,7 +7,9 @@
 # (secrets DOCKERHUB_USERNAME / DOCKERHUB_TOKEN).
 #
 # ponytail: plain docker/buildx CLI on the runner, no third-party actions;
-# the only action is actions/checkout, pinned by SHA.
+# only GitHub's own actions/checkout and actions/cache, pinned by SHA.
+# Caches: actions/cache for pip/cargo in tests; image layers in a GHCR
+# registry cache (`buildcache-python`, `buildcache-rust` tags).
 name: ci
 
 on:
@@ -24,6 +26,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-${{ runner.os }}-
       - name: pytest
         run: |
           python3.12 -m venv .venv
@@ -37,6 +44,15 @@ jobs:
         working-directory: rust
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
       - name: cargo test + clippy
         run: |
           cargo test --locked
@@ -78,15 +94,19 @@ jobs:
           labels=(--label "org.opencontainers.image.version=$VERSION"
                   --label "org.opencontainers.image.revision=$GITHUB_SHA")
           docker buildx create --use >/dev/null
+          cache() {  # registry layer cache shared across tag builds
+            echo --cache-from "type=registry,ref=$GHCR_IMAGE:buildcache-$1" \
+                 --cache-to "type=registry,ref=$GHCR_IMAGE:buildcache-$1,mode=max"
+          }
 
           tags=()
           for img in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
             tags+=(-t "$img:$VERSION" -t "$img:$VERSION-python" -t "$img:latest")
           done
-          docker buildx build --push "${labels[@]}" "${tags[@]}" -f Dockerfile .
+          docker buildx build --push $(cache python) "${labels[@]}" "${tags[@]}" -f Dockerfile .
 
           tags=()
           for img in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
             tags+=(-t "$img:$VERSION-rust" -t "$img:latest-rust")
           done
-          docker buildx build --push "${labels[@]}" "${tags[@]}" -f Dockerfile.rust .
+          docker buildx build --push $(cache rust) "${labels[@]}" "${tags[@]}" -f Dockerfile.rust .
