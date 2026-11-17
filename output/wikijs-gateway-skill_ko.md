@@ -48,7 +48,7 @@ GET $GATEWAY_URL/api/v2/documents/<uuid>[?type=<type>]
 Authorization: Bearer $GATEWAY_TOKEN
 ```
 
-`type` 파라미터는 선택 사항이다. 호출자가 경로 prefix(예: `skill`, `guide`, `agent`)를 제공하면 전달한다. 생략하면 게이트웨이는 경로를 `<uuid>` 단독으로 해석한다. type에 관계없이 로컬 저장 위치는 항상 `skills/<name>/`이다.
+`type` 파라미터는 선택 사항이다. 호출자가 경로 prefix(예: `skill`, `guide`, `agent`)를 제공하면 전달한다. 생략하면 게이트웨이는 경로가 `/<uuid>`로 끝나는 페이지를 찾는다. uuid는 먼저 대소문자까지 정확히 비교하고, 정확히 일치하는 경로가 없을 때만 대소문자를 무시한다. 그렇게 찾은 경로가 여러 개면 하나를 고르지 않고 409 `ambiguous-uuid`(`candidates` 포함)를 반환한다. type에 관계없이 로컬 저장 위치는 항상 `skills/<name>/`이다.
 
 게이트웨이가 두 locale 모두 404를 반환하면 실패를 보고하고, 사용자가 best-effort 가져오기를 요청하지 않는 한 부분적인 스킬 파일을 만들지 않는다.
 
@@ -154,6 +154,7 @@ locale 값이 `null`이면 해당 locale 페이지가 존재하지 않는 것이
 | 401 / 403 | `GATEWAY_TOKEN`이 올바르게 설정되었는지 확인 |
 | 두 locale 모두 404 | uuid에 대해 `page-not-found` 보고; 사용자가 best-effort를 요청하지 않으면 중단 |
 | 한 locale만 404 | 가능한 locale을 작성; 파일 헤더에 누락된 locale 기록 |
+| 409 `ambiguous-uuid` | 대소문자만 다른 경로가 여러 개; `candidates`를 사용자에게 보여주고 정확한 대소문자 uuid로 재시도 |
 | 기타 4xx/5xx | 본문은 `application/problem+json`; 오류 코드는 `type`의 접미사 (`urn:wikijs-gateway:problem:<code>`) |
 | `content`가 비어 있음 | 사용자에게 경고; 빈 스킬 파일 작성 금지 |
 | frontmatter에 `name` 없음 | `title`을 slug 변환해 스킬 이름으로 사용; 사용자에게 경고 |

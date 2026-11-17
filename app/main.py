@@ -178,20 +178,27 @@ _UUID_LOCALES = ["en", "ko"]
 async def _resolve_uuid_path(
     uuid: str, type: str, client: WikiJsClient
 ) -> tuple[str, str | None]:
-    """Resolve a uuid (+ optional type) to a wiki path and the type prefix."""
-    if type:
-        return f"{type}/{uuid}", type
-    found = await _upstream(client.find_path_by_uuid(uuid))
-    if found is not None and found != uuid:
-        return found, found[: -(len(uuid) + 1)]  # strip trailing "/{uuid}" to get prefix
-    return found or uuid, None
+    """Resolve a uuid (+ optional type) to a wiki path and the type prefix.
+
+    Exact-case path first; a case-insensitive match is only a fallback, and
+    several such matches are an error rather than a guess (issue #19 A1).
+    """
+    candidates = await _upstream(client.find_paths_by_uuid(uuid, type))
+    if len(candidates) > 1:
+        raise ProblemError(409, "ambiguous-uuid", uuid=uuid, candidates=candidates)
+    if candidates:
+        path = candidates[0]
+    else:
+        path = f"{type}/{uuid}" if type else uuid  # unlisted: let the page lookup 404
+    prefix = path[: -(len(uuid) + 1)]  # strip trailing "/{uuid}"; "" for a bare path
+    return path, prefix or None
 
 
 @router.get(
     "/documents/{uuid}",
     response_model=PageByUuidResponse,
     operation_id="get_page_by_uuid",
-    responses=problem_responses(404, 422, 502),
+    responses=problem_responses(404, 409, 422, 502),
 )
 async def get_page_by_uuid(
     uuid: str,
@@ -227,7 +234,7 @@ _FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
     "/documents/{uuid}/raw",
     response_class=PlainTextResponse,
     operation_id="download_page",
-    responses={200: {"content": {"text/markdown": {}}}, **problem_responses(404, 422, 502)},
+    responses={200: {"content": {"text/markdown": {}}}, **problem_responses(404, 409, 422, 502)},
 )
 async def download_page(
     uuid: str,

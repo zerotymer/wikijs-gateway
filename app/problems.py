@@ -25,6 +25,7 @@ _TITLES = {
     "forbidden": "Forbidden",
     "page-not-found": "Page not found",
     "page-changed": "Page changed",
+    "ambiguous-uuid": "Ambiguous uuid",
     "validation-error": "Validation error",
     "patch-error": "Patch error",
     "reserved-path": "Reserved path",

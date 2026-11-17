@@ -170,17 +170,18 @@ pub async fn batch_get(st: &Shared, ctx: &ReqCtx, req: BulkFetchRequest) -> Resu
 }
 
 /// Resolve a uuid (+ optional type) to a wiki path and the type prefix.
+///
+/// Exact-case path first; a case-insensitive match is only a fallback, and
+/// several such matches are an error rather than a guess (issue #19 A1).
 async fn resolve_uuid_path(st: &AppState, ctx: &ReqCtx, uuid: &str, type_: &str) -> Result<(String, Option<String>), Problem> {
-    if !type_.is_empty() {
-        return Ok((format!("{type_}/{uuid}"), Some(type_.to_string())));
+    let mut candidates = st.wiki.find_paths_by_uuid(uuid, type_, ctx.tp()).await.map_err(upstream)?;
+    if candidates.len() > 1 {
+        return Err(Problem::ambiguous_uuid(uuid, candidates));
     }
-    match st.wiki.find_path_by_uuid(uuid, ctx.tp()).await.map_err(upstream)? {
-        Some(found) if found != uuid => {
-            let prefix = found[..found.len() - uuid.len() - 1].to_string();
-            Ok((found, Some(prefix)))
-        }
-        found => Ok((found.unwrap_or_else(|| uuid.to_string()), None)),
-    }
+    // Unlisted: fall back to the literal path and let the page lookup 404.
+    let path = candidates.pop().unwrap_or_else(|| if type_.is_empty() { uuid.to_string() } else { format!("{type_}/{uuid}") });
+    let prefix = path.get(..path.len().saturating_sub(uuid.len() + 1)).unwrap_or("").to_string();
+    Ok((path, (!prefix.is_empty()).then_some(prefix)))
 }
 
 pub async fn get_document(st: &AppState, ctx: &ReqCtx, args: DocumentArgs) -> Result<PageByUuidResponse, Problem> {

@@ -78,6 +78,7 @@ REST 오류는 RFC 9457 `application/problem+json`. `type` = `urn:wikijs-gateway
 | 403 | `forbidden` | 토큰 불일치 |
 | 404 | `page-not-found` | 페이지 없음 (`/documents/{uuid}`는 en·ko 모두 없을 때) |
 | 409 | `page-changed` | `baseHash` 불일치. 확장 필드 `currentHash` |
+| 409 | `ambiguous-uuid` | `/documents/{uuid}`: 대소문자 정확 일치 경로가 없고, 대소문자 무시 일치가 여러 개. 확장 필드 `candidates` |
 | 422 | `validation-error` / `patch-error` / `reserved-path` | 입력 오류(`errors[]`) / heading·marker 없음 / `api/` 경로 쓰기 |
 | 428 | `precondition-required` | 기존 페이지 수정 upsert에 `baseHash` 누락 |
 | 502 | `wikijs-error` / `wikijs-unreachable` | 상류 오류. 내부 메시지는 로그에만 남고 응답에는 없음 |

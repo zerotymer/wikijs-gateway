@@ -168,46 +168,82 @@ _LIST_ITEMS = [
 
 @pytest.mark.anyio
 @respx.mock
-async def test_find_path_by_uuid_found_with_prefix(client):
+async def test_find_paths_by_uuid_found_with_prefix(client):
     respx.post(GRAPHQL_URL).mock(
         return_value=_graphql_response({"pages": {"list": _LIST_ITEMS}})
     )
-    result = await client.find_path_by_uuid(_TEST_UUID)
-    assert result == f"skill/{_TEST_UUID}"
+    assert await client.find_paths_by_uuid(_TEST_UUID) == [f"skill/{_TEST_UUID}"]
     await client.aclose()
 
 
 @pytest.mark.anyio
 @respx.mock
-async def test_find_path_by_uuid_not_found(client):
+async def test_find_paths_by_uuid_not_found(client):
     respx.post(GRAPHQL_URL).mock(
         return_value=_graphql_response({"pages": {"list": _LIST_ITEMS[:2]}})
     )
-    result = await client.find_path_by_uuid(_TEST_UUID)
-    assert result is None
+    assert await client.find_paths_by_uuid(_TEST_UUID) == []
     await client.aclose()
 
 
 @pytest.mark.anyio
 @respx.mock
-async def test_find_path_by_uuid_found_bare(client):
+async def test_find_paths_by_uuid_found_bare(client):
     bare_items = [{"id": 10, "path": _TEST_UUID, "locale": "en"}]
     respx.post(GRAPHQL_URL).mock(
         return_value=_graphql_response({"pages": {"list": bare_items}})
     )
-    result = await client.find_path_by_uuid(_TEST_UUID)
-    assert result == _TEST_UUID
+    assert await client.find_paths_by_uuid(_TEST_UUID) == [_TEST_UUID]
+    await client.aclose()
+
+
+_UPPER = "71A7E480-BCF2-11EE-8610-10791AE23500"
+_LOWER = _UPPER.lower()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("query,type_", [(_LOWER, ""), (_LOWER, "skill"), (_LOWER, "SKILL")])
+@respx.mock
+async def test_find_paths_by_uuid_case_insensitive_fallback(client, query, type_):
+    """Issue #19 A1: wiki stores the uppercase path, caller sends lowercase."""
+    items = [{"id": 1, "path": f"skill/{_UPPER}", "locale": "en"},
+             {"id": 2, "path": f"skill/{_UPPER}", "locale": "ko"}]
+    respx.post(GRAPHQL_URL).mock(return_value=_graphql_response({"pages": {"list": items}}))
+    assert await client.find_paths_by_uuid(query, type_) == [f"skill/{_UPPER}"]
     await client.aclose()
 
 
 @pytest.mark.anyio
 @respx.mock
-async def test_find_path_by_uuid_uses_list_not_search(client):
+async def test_find_paths_by_uuid_exact_case_wins(client):
+    """An exact-case path beats case variants, so a base file is never ambiguous."""
+    items = [{"id": 1, "path": f"skill/{_UPPER}", "locale": "en"},
+             {"id": 2, "path": f"skill/{_LOWER}", "locale": "en"}]
+    respx.post(GRAPHQL_URL).mock(return_value=_graphql_response({"pages": {"list": items}}))
+    assert await client.find_paths_by_uuid(_LOWER, "skill") == [f"skill/{_LOWER}"]
+    assert await client.find_paths_by_uuid(_UPPER) == [f"skill/{_UPPER}"]
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_paths_by_uuid_fallback_returns_all_case_variants(client):
+    mixed = _UPPER[:8].lower() + _UPPER[8:]
+    items = [{"id": 1, "path": f"skill/{_UPPER}", "locale": "en"},
+             {"id": 2, "path": f"skill/{_LOWER}", "locale": "en"}]
+    respx.post(GRAPHQL_URL).mock(return_value=_graphql_response({"pages": {"list": items}}))
+    assert await client.find_paths_by_uuid(mixed) == sorted([f"skill/{_UPPER}", f"skill/{_LOWER}"])
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_find_paths_by_uuid_uses_list_not_search(client):
     """The UUID lookup must hit pages.list — the search index doesn't cover paths."""
     route = respx.post(GRAPHQL_URL).mock(
         return_value=_graphql_response({"pages": {"list": _LIST_ITEMS}})
     )
-    await client.find_path_by_uuid(_TEST_UUID)
+    await client.find_paths_by_uuid(_TEST_UUID)
     import json
     body = json.loads(route.calls[0].request.read())
     assert "list" in body["query"]
@@ -217,10 +253,53 @@ async def test_find_path_by_uuid_uses_list_not_search(client):
 
 @pytest.mark.anyio
 @respx.mock
-async def test_find_path_by_uuid_graphql_error(client):
+async def test_find_paths_by_uuid_graphql_error(client):
     respx.post(GRAPHQL_URL).mock(return_value=_graphql_error_response("Forbidden"))
     with pytest.raises(WikiJsError):
-        await client.find_path_by_uuid(_TEST_UUID)
+        await client.find_paths_by_uuid(_TEST_UUID)
+    await client.aclose()
+
+
+# Fields of Wiki.js 2.x `type PageSearchResult` (server/graph/schemas/page.graphql).
+_PAGE_SEARCH_RESULT_FIELDS = {"id", "title", "description", "path", "locale"}
+
+
+def test_search_query_requests_only_schema_fields():
+    """Issue #19 A2: asking for a field the schema lacks makes Wiki.js reject the query."""
+    import re
+    from app.wikijs_client import _QUERY_SEARCH_PAGES
+    block = re.search(r"results\s*\{([^}]*)\}", _QUERY_SEARCH_PAGES).group(1)
+    assert set(block.split()) <= _PAGE_SEARCH_RESULT_FIELDS
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_search_accepts_string_ids(client):
+    """PageSearchResult.id is String! in the schema."""
+    data = {"results": [{"id": "10", "path": "a", "title": "A", "description": "", "locale": "en"}],
+            "suggestions": [], "totalHits": 1}
+    respx.post(GRAPHQL_URL).mock(return_value=_graphql_response({"pages": {"search": data}}))
+    assert (await client.search_pages("a", "en"))["results"][0]["id"] == "10"
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_http_400_with_graphql_errors_is_wikijs_error(client):
+    """Wiki.js sends query validation errors as HTTP 400 + errors body — not 'unreachable'."""
+    respx.post(GRAPHQL_URL).mock(return_value=httpx.Response(
+        400, json={"errors": [{"message": 'Cannot query field "updatedAt" on type "PageSearchResult".'}]}))
+    with pytest.raises(WikiJsError):
+        await client.search_pages("catalog", "en")
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
+async def test_http_400_without_errors_body_is_transport_error(client):
+    respx.post(GRAPHQL_URL).mock(return_value=httpx.Response(400, text="bad"))
+    with pytest.raises(httpx.HTTPStatusError):
+        await client.search_pages("catalog", "en")
     await client.aclose()
 
 

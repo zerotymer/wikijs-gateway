@@ -96,7 +96,6 @@ class SearchResultItem(BaseModel):
     title: str
     description: str
     locale: str
-    updatedAt: str
 
 
 class SearchResponse(BaseModel):
