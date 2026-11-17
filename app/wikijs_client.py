@@ -40,7 +40,6 @@ query SearchPages($query: String!, $locale: String) {
         title
         description
         locale
-        updatedAt
       }
       suggestions
       totalHits
@@ -127,6 +126,23 @@ def _trace_headers() -> dict[str, str]:
     return {"traceparent": tp} if tp else {}
 
 
+def _json_body(resp: httpx.Response) -> dict:
+    """Return the GraphQL body, keeping GraphQL errors sent with a 4xx status.
+
+    Wiki.js answers query validation errors with HTTP 400 plus an `errors`
+    body; those are GraphQL errors, not transport failures.
+    """
+    if resp.is_error:
+        try:
+            body = resp.json()
+        except ValueError:
+            body = None
+        if not (isinstance(body, dict) and body.get("errors")):
+            resp.raise_for_status()
+        return body
+    return resp.json()
+
+
 class WikiJsError(Exception):
     def __init__(self, errors: list[dict]) -> None:
         self.errors = errors
@@ -154,8 +170,7 @@ class WikiJsClient:
             json={"query": _QUERY_GET_PAGE_BY_PATH, "variables": {"path": _normalize_path(path), "locale": locale}},
             headers=_trace_headers(),
         )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _json_body(resp)
         if errors := body.get("errors"):
             # Wiki.js returns error code 6003 (PageNotFound) instead of null for missing pages
             codes = {e.get("extensions", {}).get("exception", {}).get("code") for e in errors}
@@ -204,8 +219,7 @@ class WikiJsClient:
             json={"query": _MUTATION_UPDATE_PAGE, "variables": variables},
             headers=_trace_headers(),
         )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _json_body(resp)
         if errors := body.get("errors"):
             raise WikiJsError(errors)
         result = body["data"]["pages"]["update"]
@@ -241,8 +255,7 @@ class WikiJsClient:
             json={"query": _MUTATION_CREATE_PAGE, "variables": variables},
             headers=_trace_headers(),
         )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _json_body(resp)
         if errors := body.get("errors"):
             raise WikiJsError(errors)
         result = body["data"]["pages"]["create"]
@@ -259,8 +272,7 @@ class WikiJsClient:
             json={"query": _QUERY_SEARCH_PAGES, "variables": variables},
             headers=_trace_headers(),
         )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _json_body(resp)
         if errors := body.get("errors"):
             raise WikiJsError(errors)
         return body["data"]["pages"]["search"]
@@ -278,26 +290,34 @@ class WikiJsClient:
             json={"query": _QUERY_LIST_PAGES},
             headers=_trace_headers(),
         )
-        resp.raise_for_status()
-        body = resp.json()
+        body = _json_body(resp)
         if errors := body.get("errors"):
             raise WikiJsError(errors)
         return body["data"]["pages"]["list"] or []
 
-    async def find_path_by_uuid(self, uuid: str) -> str | None:
-        """Find a page path whose last segment equals the given UUID.
+    async def find_paths_by_uuid(self, uuid: str, type: str = "") -> list[str]:
+        """Find page paths for a uuid (optionally under a `type/` prefix).
 
         Uses `pages.list` (not `pages.search`) because the UUID lives only in
         the path, which the search engine does not index.
+
+        Case-sensitive match wins and returns one path. Only when there is none,
+        a case-insensitive match is tried; it may return several paths, which
+        the caller must treat as ambiguous instead of picking one.
         """
         # NOTE: list returns every page; if the catalog grows large, consider
         # caching the result or probing known prefixes (skill/, guide/, ...).
-        pages = await self.list_pages()
-        for item in pages:
-            path = item.get("path", "")
-            if path == uuid or path.endswith(f"/{uuid}"):
-                return path
-        return None
+        paths = [item.get("path", "") for item in await self.list_pages()]
+        target = f"{type}/{uuid}" if type else uuid
+
+        def hit(path: str, t: str) -> bool:
+            return path == t if type else (path == t or path.endswith(f"/{t}"))
+
+        exact = [p for p in paths if hit(p, target)]
+        if exact:
+            return exact[:1]
+        folded = target.lower()
+        return sorted({p for p in paths if hit(p.lower(), folded)})
 
     async def ping(self) -> bool:
         try:

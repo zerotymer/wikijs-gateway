@@ -110,8 +110,12 @@ impl Respond for FakeWiki {
             return ResponseTemplate::new(200).set_body_json(json!({"data": {"pages": {"list": list}}}));
         }
         if q.contains("search(") {
+            if v["query"] == "invalid-query" {
+                // Wiki.js rejects schema-invalid queries with HTTP 400 + errors body.
+                return ResponseTemplate::new(400).set_body_json(json!({"errors": [{"message": "Cannot query field"}]}));
+            }
             let results: Vec<Value> = (0..3)
-                .map(|i| json!({"id": i, "path": format!("p{i}"), "title": "t", "description": "", "locale": "ko", "updatedAt": "x"}))
+                .map(|i| json!({"id": i.to_string(), "path": format!("p{i}"), "title": "t", "description": "", "locale": "ko"}))
                 .collect();
             return ResponseTemplate::new(200)
                 .set_body_json(json!({"data": {"pages": {"search": {"results": results, "suggestions": [], "totalHits": 3}}}}));
@@ -454,6 +458,11 @@ async fn search_batch_documents_raw() {
     assert_eq!(v["results"].as_array().unwrap().len(), 2);
     assert_eq!(v["totalHits"], 3);
     assert_eq!(v["query"], "x");
+    assert_eq!(v["results"][0]["id"], 0, "string ids from PageSearchResult stay numeric");
+
+    // A 400 carrying GraphQL errors is a Wiki.js error, not an unreachable upstream.
+    let v: Value = env.get("/api/v2/pages/search?q=invalid-query").await.json().await.unwrap();
+    assert_eq!(v["type"], "urn:wikijs-gateway:problem:wikijs-error");
 
     let r = env.write(reqwest::Method::POST, "/api/v2/pages/batch-get", json!({"paths": [{"path": "doc/a"}, {"path": "nope"}]}), None).await;
     let v: Value = r.json().await.unwrap();
@@ -470,6 +479,13 @@ async fn search_batch_documents_raw() {
     assert_eq!(v["pages"]["ko"], Value::Null);
     assert_eq!(v["pages"]["en"]["id"], 2);
     assert_problem(env.get("/api/v2/documents/missing-uuid").await, 404, "page-not-found").await;
+
+    // Issue #19 A1: case-insensitive fallback resolves to the stored path, with or without type.
+    for url in ["/api/v2/documents/0B6E1F8A-UUID", "/api/v2/documents/0B6E1F8A-UUID?type=skill"] {
+        let v: Value = env.get(url).await.json().await.unwrap();
+        assert_eq!(v["pages"]["en"]["path"], "skill/0b6e1f8a-uuid", "{url}");
+        assert_eq!(v["type"], "skill", "{url}");
+    }
 
     let r = env.get("/api/v2/documents/0b6e1f8a-uuid/raw?locale=en").await;
     assert_eq!(r.status(), 200);

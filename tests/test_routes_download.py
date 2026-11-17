@@ -35,6 +35,13 @@ def _page(locale: str, path: str = f"skill/{_UUID}") -> PageResponse:
     )
 
 
+def _mock() -> AsyncMock:
+    """Wiki.js client mock whose uuid lookup finds nothing unless a test says so."""
+    mock = AsyncMock()
+    mock.find_paths_by_uuid.return_value = []
+    return mock
+
+
 def _setup(mock_client):
     app.dependency_overrides[get_settings] = lambda: Settings(**TEST_ENV)
     app.dependency_overrides[get_wikijs_client] = lambda: mock_client
@@ -46,7 +53,7 @@ def _teardown():
 
 
 def test_download_defaults_to_type_uppercase_and_ko():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
@@ -61,7 +68,7 @@ def test_download_defaults_to_type_uppercase_and_ko():
 
 
 def test_download_locale_selects_content_but_not_filename():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
@@ -77,7 +84,7 @@ def test_download_locale_selects_content_but_not_filename():
 
 
 def test_download_explicit_filename():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
@@ -91,7 +98,7 @@ def test_download_explicit_filename():
 
 
 def test_download_filename_with_md_suffix_is_not_doubled():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
@@ -106,22 +113,22 @@ def test_download_filename_with_md_suffix_is_not_doubled():
 
 
 def test_download_resolves_type_without_type_param():
-    mock = AsyncMock()
-    mock.find_path_by_uuid.return_value = f"skill/{_UUID}"
+    mock = _mock()
+    mock.find_paths_by_uuid.return_value = [f"skill/{_UUID}"]
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
         resp = client.get(f"/api/v2/documents/{_UUID}/raw", params={})
         assert resp.status_code == 200
         assert resp.headers["content-disposition"] == 'attachment; filename="SKILL.md"'
-        mock.find_path_by_uuid.assert_called_once_with(_UUID)
+        mock.find_paths_by_uuid.assert_called_once_with(_UUID, "")
     finally:
         _teardown()
 
 
 def test_download_unresolved_type_falls_back_to_noname():
-    mock = AsyncMock()
-    mock.find_path_by_uuid.return_value = _UUID  # bare uuid path, no prefix
+    mock = _mock()
+    mock.find_paths_by_uuid.return_value = [_UUID]  # bare uuid path, no prefix
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale, path=_UUID)
     client = _setup(mock)
     try:
@@ -133,7 +140,7 @@ def test_download_unresolved_type_falls_back_to_noname():
 
 
 def test_download_rejects_unsafe_filenames():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale)
     client = _setup(mock)
     try:
@@ -151,8 +158,8 @@ def test_download_rejects_unsafe_filenames():
 
 def test_download_rejects_unsafe_type_derived_filename():
     """A wiki path prefix that is not header-safe falls back instead of leaking."""
-    mock = AsyncMock()
-    mock.find_path_by_uuid.return_value = f'a"/b/{_UUID}'
+    mock = _mock()
+    mock.find_paths_by_uuid.return_value = [f'a"/b/{_UUID}']
     mock.get_page_by_path.side_effect = lambda path, locale: _page(locale, path=path)
     client = _setup(mock)
     try:
@@ -164,7 +171,7 @@ def test_download_rejects_unsafe_type_derived_filename():
 
 
 def test_download_missing_page_returns_404():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
@@ -177,7 +184,7 @@ def test_download_missing_page_returns_404():
 
 
 def test_download_wikijs_error_propagates():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = WikiJsError([{"message": "forbidden"}])
     client = _setup(mock)
     try:
@@ -189,7 +196,7 @@ def test_download_wikijs_error_propagates():
 
 
 def test_download_network_error_propagates():
-    mock = AsyncMock()
+    mock = _mock()
     mock.get_page_by_path.side_effect = httpx.ConnectError("refused")
     client = _setup(mock)
     try:

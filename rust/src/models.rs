@@ -57,13 +57,27 @@ pub struct SearchQuery {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResultItem {
+    /// Wiki.js `PageSearchResult.id` is `String!`; the API keeps it numeric.
+    #[serde(deserialize_with = "int_or_string")]
     pub id: i64,
     pub path: String,
     pub title: String,
     #[serde(default, deserialize_with = "null_to_empty")]
     pub description: String,
     pub locale: String,
-    pub updated_at: String,
+}
+
+fn int_or_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Id {
+        Int(i64),
+        Str(String),
+    }
+    match Id::deserialize(d)? {
+        Id::Int(i) => Ok(i),
+        Id::Str(s) => s.parse().map_err(serde::de::Error::custom),
+    }
 }
 
 fn null_to_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {

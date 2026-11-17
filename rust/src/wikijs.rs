@@ -44,7 +44,6 @@ query SearchPages($query: String!, $locale: String) {
         title
         description
         locale
-        updatedAt
       }
       suggestions
       totalHits
@@ -222,6 +221,19 @@ pub fn normalize_path(path: &str) -> &str {
     path.trim_start_matches('/')
 }
 
+/// Exact-case match first (one path); otherwise every case-insensitive match, sorted and deduplicated.
+pub fn match_uuid_paths(paths: &[&str], uuid: &str, type_: &str) -> Vec<String> {
+    let target = if type_.is_empty() { uuid.to_string() } else { format!("{type_}/{uuid}") };
+    let hit = |p: &str, t: &str| if type_.is_empty() { p == t || p.ends_with(&format!("/{t}")) } else { p == t };
+    if let Some(p) = paths.iter().find(|p| hit(p, &target)) {
+        return vec![p.to_string()];
+    }
+    let folded = target.to_lowercase();
+    let set: std::collections::BTreeSet<String> =
+        paths.iter().filter(|p| hit(&p.to_lowercase(), &folded)).map(|p| p.to_string()).collect();
+    set.into_iter().collect()
+}
+
 fn transport<E: std::fmt::Display>(e: E) -> WikiError {
     WikiError::Transport(e.to_string())
 }
@@ -241,7 +253,17 @@ impl WikiClient {
         if let Some(tp) = traceparent {
             req = req.header("traceparent", tp);
         }
-        let resp = req.send().await.map_err(transport)?.error_for_status().map_err(transport)?;
+        let resp = req.send().await.map_err(transport)?;
+        let status = resp.status();
+        if status.is_client_error() || status.is_server_error() {
+            // Wiki.js answers query validation errors with HTTP 400 plus an
+            // `errors` body: those are GraphQL errors, not transport failures.
+            let body: Option<Value> = resp.json().await.ok();
+            return match body {
+                Some(b) if Self::errors(&b).is_some() => Ok(b),
+                _ => Err(WikiError::Transport(format!("HTTP status {status}"))),
+            };
+        }
         resp.json::<Value>().await.map_err(transport)
     }
 
@@ -353,19 +375,21 @@ impl WikiClient {
         serde_json::from_value(pointer(&body, "/data/pages/search")?.clone()).map_err(transport)
     }
 
-    /// Find a page path whose last segment equals `uuid` (via `pages.list`;
-    /// the search index never covers paths).
-    pub async fn find_path_by_uuid(&self, uuid: &str, tp: Option<&str>) -> Result<Option<String>, WikiError> {
+    /// Find page paths for `uuid`, optionally under a `type_/` prefix (via
+    /// `pages.list`; the search index never covers paths).
+    ///
+    /// An exact-case match wins and yields one path. Only when there is none is
+    /// a case-insensitive match tried; it may yield several paths, which the
+    /// caller must treat as ambiguous instead of picking one.
+    pub async fn find_paths_by_uuid(&self, uuid: &str, type_: &str, tp: Option<&str>) -> Result<Vec<String>, WikiError> {
         let body = self.post(json!({"query": QUERY_LIST_PAGES}), tp).await?;
         if let Some(errors) = Self::errors(&body) {
             return Err(WikiError::Graphql(errors.clone()));
         }
         let list = pointer(&body, "/data/pages/list")?;
-        let suffix = format!("/{uuid}");
-        Ok(list.as_array().into_iter().flatten().find_map(|item| {
-            let path = item.get("path").and_then(Value::as_str).unwrap_or("");
-            (path == uuid || path.ends_with(&suffix)).then(|| path.to_string())
-        }))
+        let paths: Vec<&str> =
+            list.as_array().into_iter().flatten().map(|i| i.get("path").and_then(Value::as_str).unwrap_or("")).collect();
+        Ok(match_uuid_paths(&paths, uuid, type_))
     }
 
     pub async fn ping(&self) -> bool {
@@ -373,5 +397,36 @@ impl WikiClient {
             Ok(body) => body.get("errors").is_none(),
             Err(_) => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::match_uuid_paths;
+
+    const UP: &str = "71A7E480-BCF2-11EE-8610-10791AE23500";
+
+    #[test]
+    fn case_insensitive_fallback_finds_stored_path() {
+        let stored = format!("skill/{UP}");
+        let lo = UP.to_lowercase();
+        assert_eq!(match_uuid_paths(&[&stored, &stored], &lo, ""), vec![stored.clone()]);
+        assert_eq!(match_uuid_paths(&[&stored], &lo, "skill"), vec![stored.clone()]);
+        assert_eq!(match_uuid_paths(&[&stored], &lo, "SKILL"), vec![stored]);
+    }
+
+    #[test]
+    fn exact_case_wins_over_variants() {
+        let (a, b) = (format!("skill/{UP}"), format!("skill/{}", UP.to_lowercase()));
+        assert_eq!(match_uuid_paths(&[&a, &b], &UP.to_lowercase(), "skill"), vec![b.clone()]);
+        assert_eq!(match_uuid_paths(&[&a, &b], UP, ""), vec![a]);
+    }
+
+    #[test]
+    fn fallback_returns_all_variants() {
+        let (a, b) = (format!("skill/{UP}"), format!("skill/{}", UP.to_lowercase()));
+        let mixed = format!("{}{}", UP[..8].to_lowercase(), &UP[8..]);
+        assert_eq!(match_uuid_paths(&[&a, &b], &mixed, "").len(), 2);
+        assert!(match_uuid_paths(&[&a], "nope", "").is_empty());
     }
 }
