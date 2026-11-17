@@ -231,6 +231,24 @@ docker compose -f docker-compose.gateway.yml logs -f
 | `BATCH_MAX_SIZE` | ❌ | `batch-get` 최대 path 수 (기본: `50`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 render 호출 여부 (기본: `false`) |
 
+## 릴리스 (CI 이미지 배포)
+
+`.github/workflows/ci.yml` — PR·`main` push마다 `pytest` + `cargo test`/`clippy`를 실행하고, `v*` 태그 push 시 테스트 통과 후 이미지를 GHCR과 Docker Hub에 push한다.
+
+```bash
+# app/main.py version= 과 rust/Cargo.toml version 을 먼저 올린다 (태그와 다르면 publish 실패)
+git tag v2.0.1 && git push origin v2.0.1
+```
+
+| 이미지 | 태그 |
+|---|---|
+| Python | `2.0.1`, `2.0.1-python`, `latest` |
+| Rust | `2.0.1-rust`, `latest-rust` |
+
+레지스트리: `ghcr.io/zerotymer/wikijs-gateway`, Docker Hub `<DOCKERHUB_USERNAME>/wikijs-gateway`. Docker Hub 인증은 repo secret `DOCKERHUB_USERNAME`·`DOCKERHUB_TOKEN`. GHCR 패키지는 private repo를 따라 비공개이므로 운영 서버에서 `docker login ghcr.io` 필요.
+
+캐시: 테스트 job은 `actions/cache`(pip, cargo), 이미지 빌드는 GHCR registry 캐시 태그 `buildcache-python`·`buildcache-rust`(배포용 태그 아님).
+
 ## Rollback
 
 ```bash
