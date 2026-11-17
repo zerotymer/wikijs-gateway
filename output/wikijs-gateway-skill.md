@@ -56,9 +56,11 @@ Authorization: Bearer $GATEWAY_TOKEN
 ```
 
 The `type` parameter is optional. Pass it when the caller provides a path
-prefix (e.g. `skill`, `guide`, `agent`). When omitted the gateway resolves the
-path as `<uuid>` alone. The local save location is always `skills/<name>/`
-regardless of type.
+prefix (e.g. `skill`, `guide`, `agent`). When omitted the gateway finds the
+page whose path ends in `/<uuid>`. The uuid is matched exactly first; only if
+no path matches exactly is case ignored, and if that finds several paths the
+gateway returns 409 `ambiguous-uuid` (with `candidates`) instead of guessing.
+The local save location is always `skills/<name>/` regardless of type.
 
 If the gateway returns 404 for both locales, report the failure and do not
 create partial skill files unless the user asks for a best-effort import.
@@ -190,6 +192,7 @@ A locale value of `null` means the page does not exist in that locale.
 | 401 / 403 | Check `GATEWAY_TOKEN` is set correctly |
 | 404 both locales | Report `page-not-found` for uuid; stop unless user requests best-effort |
 | 404 one locale | Write available locale; note the missing one in the file header |
+| 409 `ambiguous-uuid` | Several paths differ only in case; show `candidates` to the user and retry with the exact-case uuid |
 | Other 4xx/5xx | Body is `application/problem+json`; the error code is the suffix of `type` (`urn:wikijs-gateway:problem:<code>`) |
 | `content` is empty | Warn the user; do not write an empty skill file |
 | No frontmatter `name` | Slugify `title` and use as skill name; warn the user |

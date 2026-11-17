@@ -15,7 +15,6 @@ _SAMPLE_SEARCH_DATA = {
             "title": "Deploy Log",
             "description": "Automated deploy records",
             "locale": "ko",
-            "updatedAt": "2026-05-31T10:00:00Z",
         },
         {
             "id": 11,
@@ -23,7 +22,6 @@ _SAMPLE_SEARCH_DATA = {
             "title": "Rollback Guide",
             "description": "How to rollback",
             "locale": "ko",
-            "updatedAt": "2026-05-30T09:00:00Z",
         },
     ],
     "suggestions": [],

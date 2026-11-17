@@ -115,13 +115,13 @@ pub async fn dry_run_patch(State(st): State<Shared>, Ctx(ctx): Ctx, J(body): J<P
 }
 
 #[utoipa::path(get, path = "/api/v2/documents/{uuid}", operation_id = "get_page_by_uuid", params(("uuid" = String, Path), DocumentQuery),
-    responses((status = 200, body = PageByUuidResponse), (status = 404), (status = 502)))]
+    responses((status = 200, body = PageByUuidResponse), (status = 404), (status = 409), (status = 502)))]
 pub async fn get_page_by_uuid(State(st): State<Shared>, Ctx(ctx): Ctx, Path(uuid): Path<String>, Q(q): Q<DocumentQuery>) -> ApiResult<Json<PageByUuidResponse>> {
     service::get_document(&st, &ctx, DocumentArgs { uuid, type_: q.type_ }).await.map(Json)
 }
 
 #[utoipa::path(get, path = "/api/v2/documents/{uuid}/raw", operation_id = "download_page", params(("uuid" = String, Path), RawQuery),
-    responses((status = 200, content_type = "text/markdown", body = String), (status = 404), (status = 422), (status = 502)))]
+    responses((status = 200, content_type = "text/markdown", body = String), (status = 404), (status = 409), (status = 422), (status = 502)))]
 pub async fn download_page(State(st): State<Shared>, Ctx(ctx): Ctx, Path(uuid): Path<String>, Q(q): Q<RawQuery>) -> ApiResult<Response> {
     let (content, filename) = service::raw_document(&st, &ctx, uuid, q).await?;
     let mut headers = HeaderMap::new();

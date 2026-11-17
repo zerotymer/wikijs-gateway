@@ -46,6 +46,9 @@ impl Problem {
     pub fn page_changed(current_hash: String) -> Self {
         Self::new(StatusCode::CONFLICT, "page-changed").with("currentHash", current_hash)
     }
+    pub fn ambiguous_uuid(uuid: &str, candidates: Vec<String>) -> Self {
+        Self::new(StatusCode::CONFLICT, "ambiguous-uuid").with("uuid", uuid).with("candidates", candidates)
+    }
     pub fn validation(errors: Vec<Value>) -> Self {
         Self::new(StatusCode::UNPROCESSABLE_ENTITY, "validation-error")
             .detail("Request validation failed")
@@ -83,6 +86,7 @@ impl Problem {
             "forbidden" => "Forbidden",
             "page-not-found" => "Page not found",
             "page-changed" => "Page changed",
+            "ambiguous-uuid" => "Ambiguous uuid",
             "validation-error" => "Validation error",
             "patch-error" => "Patch error",
             "reserved-path" => "Reserved path",
