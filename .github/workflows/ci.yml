@@ -1,0 +1,92 @@
+# Test on every PR / main push; publish images on a `v*` tag.
+#
+# Images (tag v2.0.1 -> VERSION 2.0.1):
+#   Python : <registry>/wikijs-gateway:{VERSION, VERSION-python, latest}
+#   Rust   : <registry>/wikijs-gateway:{VERSION-rust, latest-rust}
+# Registries: ghcr.io/zerotymer (GITHUB_TOKEN) and Docker Hub
+# (secrets DOCKERHUB_USERNAME / DOCKERHUB_TOKEN).
+#
+# ponytail: plain docker/buildx CLI on the runner, no third-party actions;
+# the only action is actions/checkout, pinned by SHA.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  test-python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: pytest
+        run: |
+          python3.12 -m venv .venv
+          .venv/bin/python -m pip install -q -r requirements.txt pytest==9.0.3
+          .venv/bin/python -m pytest -q
+
+  test-rust:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: cargo test + clippy
+        run: |
+          cargo test --locked
+          cargo clippy --locked --all-targets -- -D warnings
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test-python, test-rust]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/wikijs-gateway
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check tag matches app versions
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          py=$(grep -oP '^\s*version="\K[^"]+' app/main.py)
+          rs=$(grep -oP '^version = "\K[^"]+' rust/Cargo.toml)
+          echo "tag=$VERSION python=$py rust=$rs"
+          [ "$py" = "$VERSION" ] && [ "$rs" = "$VERSION" ] || { echo "::error::tag $VERSION != app/main.py ($py) / rust/Cargo.toml ($rs)"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Registry login
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+
+      - name: Build and push
+        run: |
+          DOCKERHUB_IMAGE="docker.io/$DOCKERHUB_USERNAME/wikijs-gateway"
+          labels=(--label "org.opencontainers.image.version=$VERSION"
+                  --label "org.opencontainers.image.revision=$GITHUB_SHA")
+          docker buildx create --use >/dev/null
+
+          tags=()
+          for img in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            tags+=(-t "$img:$VERSION" -t "$img:$VERSION-python" -t "$img:latest")
+          done
+          docker buildx build --push "${labels[@]}" "${tags[@]}" -f Dockerfile .
+
+          tags=()
+          for img in "$GHCR_IMAGE" "$DOCKERHUB_IMAGE"; do
+            tags+=(-t "$img:$VERSION-rust" -t "$img:latest-rust")
+          done
+          docker buildx build --push "${labels[@]}" "${tags[@]}" -f Dockerfile.rust .
