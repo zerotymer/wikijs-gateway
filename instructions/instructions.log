@@ -28,3 +28,4 @@ f8363f94-7f73-4a73-bae4-75e9e38d585c | Step 8: 역할 기반 인증 분리 (읽�
 51e3730a-dd1e-4605-9ee6-a952dcdfe4df | Issue #19 — by-uuid 대소문자 fallback + search 502 수정 | 2026-11-17T04:54:05Z | created
 51e3730a-dd1e-4605-9ee6-a952dcdfe4df | Issue #19 — by-uuid 대소문자 fallback + search 502 수정 | 2026-11-17T04:59:38Z | completed
 a13a4a2b-1a69-409f-b9cb-9af6577222b8 | GitHub Actions CI + 이미지 배포 (GHCR, Docker Hub) | 2026-11-17T05:01:24Z | created
+a13a4a2b-1a69-409f-b9cb-9af6577222b8 | GitHub Actions CI + 이미지 배포 (GHCR, Docker Hub) | 2026-11-18T01:35:39Z | completed (v2.0.0 published)
