@@ -36,9 +36,9 @@ def _page(locale: str, path: str = f"skill/{_UUID}") -> PageResponse:
 
 
 def _mock() -> AsyncMock:
-    """Wiki.js client mock whose uuid lookup finds nothing unless a test says so."""
+    """Wiki.js client mock whose uuid lookup finds `skill/{uuid}` unless a test says so."""
     mock = AsyncMock()
-    mock.find_paths_by_uuid.return_value = []
+    mock.find_paths_by_uuid.return_value = [f"skill/{_UUID}"]
     return mock
 
 

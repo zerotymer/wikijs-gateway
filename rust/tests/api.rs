@@ -68,6 +68,12 @@ impl Respond for FakeWiki {
             if s.wrote.load(Ordering::SeqCst) && s.fail_reads_after_write.load(Ordering::SeqCst) {
                 return ResponseTemplate::new(503);
             }
+            if v["path"].as_str().unwrap().starts_with("forbidden/") {
+                return ResponseTemplate::new(200).set_body_json(json!({
+                    "errors": [{"message": "forbidden", "extensions": {"exception": {"code": 6013}}}],
+                    "data": {"pages": {"singleByPath": null}}
+                }));
+            }
             let key = (v["path"].as_str().unwrap().to_string(), v["locale"].as_str().unwrap().to_string());
             return match s.pages.lock().unwrap().get(&key) {
                 Some(p) => ResponseTemplate::new(200).set_body_json(json!({"data": {"pages": {"singleByPath": Self::page_json(p)}}})),
@@ -479,6 +485,10 @@ async fn search_batch_documents_raw() {
     assert_eq!(v["pages"]["ko"], Value::Null);
     assert_eq!(v["pages"]["en"]["id"], 2);
     assert_problem(env.get("/api/v2/documents/missing-uuid").await, 404, "page-not-found").await;
+    // Issue #23: an unlisted uuid is 404 even with a type, and 6013 (forbidden) is 404, not 502.
+    assert_problem(env.get("/api/v2/documents/missing-uuid?type=trash").await, 404, "page-not-found").await;
+    assert_problem(env.get("/api/v2/documents/missing-uuid/raw?type=trash").await, 404, "page-not-found").await;
+    assert_problem(env.get("/api/v2/pages?path=forbidden/x").await, 404, "page-not-found").await;
 
     // Issue #19 A1: case-insensitive fallback resolves to the stored path, with or without type.
     for url in ["/api/v2/documents/0B6E1F8A-UUID", "/api/v2/documents/0B6E1F8A-UUID?type=skill"] {

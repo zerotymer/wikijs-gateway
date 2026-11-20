@@ -143,6 +143,20 @@ async def test_get_page_by_path_wikijs_6003_returns_none(client):
 
 @pytest.mark.anyio
 @respx.mock
+async def test_get_page_by_path_wikijs_6013_returns_none(client):
+    """Issue #23: 6013 (PageViewForbidden) is reported as missing, not as an upstream error."""
+    respx.post(GRAPHQL_URL).mock(
+        return_value=httpx.Response(200, json={
+            "errors": [{"message": "Forbidden", "extensions": {"exception": {"code": 6013}}}]
+        })
+    )
+    page = await client.get_page_by_path("trash/some-page", "en")
+    assert page is None
+    await client.aclose()
+
+
+@pytest.mark.anyio
+@respx.mock
 async def test_get_page_by_path_leading_slash_normalized(client):
     """Leading slash in path is stripped before sending to Wiki.js."""
     route = respx.post(GRAPHQL_URL).mock(

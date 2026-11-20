@@ -36,9 +36,9 @@ def _page(locale: str, path: str = f"skill/{_UUID}") -> PageResponse:
 
 
 def _mock() -> AsyncMock:
-    """Wiki.js client mock whose uuid lookup finds nothing unless a test says so."""
+    """Wiki.js client mock whose uuid lookup finds `skill/{uuid}` unless a test says so."""
     mock = AsyncMock()
-    mock.find_paths_by_uuid.return_value = []
+    mock.find_paths_by_uuid.return_value = [f"skill/{_UUID}"]
     return mock
 
 
@@ -140,16 +140,30 @@ def test_by_uuid_without_type_bare_path():
 
 
 def test_by_uuid_without_type_search_not_found():
-    """type 생략 + search 결과 없음 → bare uuid 시도 → PAGE_NOT_FOUND"""
+    """type 생략 + pages.list에 없음 → 단건 조회 없이 PAGE_NOT_FOUND"""
     mock = _mock()
     mock.find_paths_by_uuid.return_value = []
-    mock.get_page_by_path.return_value = None
     client = _setup(mock)
     try:
         resp = client.get(f"/api/v2/documents/{_UUID}", params={})
         assert resp.status_code == 404
         assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
         assert resp.json()["uuid"] == _UUID
+        mock.get_page_by_path.assert_not_called()
+    finally:
+        _teardown()
+
+
+def test_by_uuid_unlisted_with_type_returns_404():
+    """Issue #23: 휴지통 등 pages.list에 없는 uuid는 type이 있어도 404 (502 아님)"""
+    mock = _mock()
+    mock.find_paths_by_uuid.return_value = []
+    client = _setup(mock)
+    try:
+        resp = client.get(f"/api/v2/documents/{_UUID}", params={"type": "trash"})
+        assert resp.status_code == 404
+        assert resp.json()["type"] == "urn:wikijs-gateway:problem:page-not-found"
+        mock.get_page_by_path.assert_not_called()
     finally:
         _teardown()
 
