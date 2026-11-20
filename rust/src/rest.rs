@@ -152,7 +152,7 @@ pub async fn health_ready(State(st): State<Shared>) -> ApiResult<Json<ReadyRespo
 
 #[derive(OpenApi)]
 #[openapi(
-    info(title = "wikijs-agent-gateway", version = "2.0.0"),
+    info(title = "wikijs-agent-gateway", version = "2.1.0"),
     paths(get_page_by_path, search_pages, get_pages_by_paths, upsert_page, patch_section, dry_run_patch,
           get_page_by_uuid, download_page),
     modifiers(&BearerScheme)
