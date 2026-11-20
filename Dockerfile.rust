@@ -1,5 +1,5 @@
 # Rust implementation of wikijs-gateway (API v2). Image tag: 2.x.y-rust
-# Build: docker build -f Dockerfile.rust -t wikijs-gateway:2.0.0-rust .
+# Build: docker build -f Dockerfile.rust -t wikijs-gateway:2.1.0-rust .
 
 FROM rust:1.97-bookworm AS build
 WORKDIR /src

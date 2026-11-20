@@ -45,7 +45,7 @@ def test_openapi_only_under_v2(client):
     assert resp.status_code == 200
     assert resp.headers["x-served-by"] == "wikijs-gateway"
     spec = resp.json()
-    assert spec["info"]["version"] == "2.0.0"
+    assert spec["info"]["version"] == "2.1.0"
     assert all(p.startswith("/api/v2/") for p in spec["paths"])
     for gone in ["/openapi.json", "/docs", "/redoc", "/api/v2/docs"]:
         assert client.get(gone).status_code == 404, gone
