@@ -173,13 +173,14 @@ pub async fn batch_get(st: &Shared, ctx: &ReqCtx, req: BulkFetchRequest) -> Resu
 ///
 /// Exact-case path first; a case-insensitive match is only a fallback, and
 /// several such matches are an error rather than a guess (issue #19 A1).
+/// A uuid missing from `pages.list` (e.g. a trashed page) is 404, with or
+/// without type (issue #23).
 async fn resolve_uuid_path(st: &AppState, ctx: &ReqCtx, uuid: &str, type_: &str) -> Result<(String, Option<String>), Problem> {
     let mut candidates = st.wiki.find_paths_by_uuid(uuid, type_, ctx.tp()).await.map_err(upstream)?;
     if candidates.len() > 1 {
         return Err(Problem::ambiguous_uuid(uuid, candidates));
     }
-    // Unlisted: fall back to the literal path and let the page lookup 404.
-    let path = candidates.pop().unwrap_or_else(|| if type_.is_empty() { uuid.to_string() } else { format!("{type_}/{uuid}") });
+    let path = candidates.pop().ok_or_else(|| Problem::page_not_found().with("uuid", uuid.to_string()))?;
     let prefix = path.get(..path.len().saturating_sub(uuid.len() + 1)).unwrap_or("").to_string();
     Ok((path, (!prefix.is_empty()).then_some(prefix)))
 }

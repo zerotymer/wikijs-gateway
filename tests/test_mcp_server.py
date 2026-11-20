@@ -133,7 +133,7 @@ def test_read_tool_returns_page_without_token(wiki):
 def test_uuid_tool_maps_path_param(wiki):
     mock = AsyncMock()
     mock.get_page_by_path.return_value = _SAMPLE_PAGE
-    mock.find_paths_by_uuid.return_value = []
+    mock.find_paths_by_uuid.return_value = ["skill/abc"]
     wiki["mock"] = mock
     _call_tool("get_page_by_uuid", {"uuid": "abc", "type": "skill"})
     mock.get_page_by_path.assert_any_call("skill/abc", "ko")

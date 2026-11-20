@@ -172,9 +172,11 @@ class WikiJsClient:
         )
         body = _json_body(resp)
         if errors := body.get("errors"):
-            # Wiki.js returns error code 6003 (PageNotFound) instead of null for missing pages
+            # Wiki.js returns error code 6003 (PageNotFound) instead of null for missing pages.
+            # 6013 (PageViewForbidden) is treated the same: a page the token cannot read is
+            # reported as missing, which also avoids leaking its existence (issue #23).
             codes = {e.get("extensions", {}).get("exception", {}).get("code") for e in errors}
-            if 6003 in codes:
+            if codes & {6003, 6013}:
                 return None
             raise WikiJsError(errors)
         page = body["data"]["pages"]["singleByPath"]

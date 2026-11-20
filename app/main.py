@@ -182,14 +182,15 @@ async def _resolve_uuid_path(
 
     Exact-case path first; a case-insensitive match is only a fallback, and
     several such matches are an error rather than a guess (issue #19 A1).
+    A uuid missing from `pages.list` (e.g. a trashed page) is 404, with or
+    without type (issue #23).
     """
     candidates = await _upstream(client.find_paths_by_uuid(uuid, type))
     if len(candidates) > 1:
         raise ProblemError(409, "ambiguous-uuid", uuid=uuid, candidates=candidates)
-    if candidates:
-        path = candidates[0]
-    else:
-        path = f"{type}/{uuid}" if type else uuid  # unlisted: let the page lookup 404
+    if not candidates:
+        raise ProblemError(404, "page-not-found", uuid=uuid)
+    path = candidates[0]
     prefix = path[: -(len(uuid) + 1)]  # strip trailing "/{uuid}"; "" for a bare path
     return path, prefix or None
 

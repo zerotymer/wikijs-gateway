@@ -281,9 +281,11 @@ impl WikiClient {
             .await?;
         if let Some(errors) = Self::errors(&body) {
             // Wiki.js answers a missing page with error code 6003 instead of null.
-            let not_found = errors
-                .as_array()
-                .is_some_and(|a| a.iter().any(|e| e.pointer("/extensions/exception/code") == Some(&json!(6003))));
+            // 6013 (PageViewForbidden) is treated the same: an unreadable page is
+            // reported as missing, which also hides its existence (issue #23).
+            let not_found = errors.as_array().is_some_and(|a| {
+                a.iter().any(|e| matches!(e.pointer("/extensions/exception/code").and_then(Value::as_i64), Some(6003 | 6013)))
+            });
             if not_found {
                 return Ok(None);
             }

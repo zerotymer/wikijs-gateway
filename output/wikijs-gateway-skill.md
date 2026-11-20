@@ -27,15 +27,28 @@ reading copy and must stay semantically equivalent.
 
 ## Prerequisites
 
-The gateway must be running and the following must be available in the
-environment or shell:
+The gateway must be reachable. Set `GATEWAY_URL` to the public endpoint, or to
+the local bind when running on the gateway host:
 
 ```
-GATEWAY_URL=http://127.0.0.1:8088
-GATEWAY_TOKEN=<read-token>
+GATEWAY_URL=https://md-gw.zerotymer.net   # public (behind Cloudflare)
+# GATEWAY_URL=http://127.0.0.1:8088       # local, on the gateway host
+GATEWAY_TOKEN=<token>                      # optional for reads
 ```
 
-All requests use `Authorization: Bearer $GATEWAY_TOKEN`.
+**Authentication**: read endpoints do not require a token today. Send
+`Authorization: Bearer $GATEWAY_TOKEN` anyway when you have one — reads ignore
+it now, and a future version may require it. Write endpoints always require the
+admin token.
+
+**User-Agent**: the public endpoint sits behind Cloudflare, which rejects some
+default client User-Agents with 403 — notably Python's `Python-urllib/3.x`.
+`curl` and most HTTP clients are fine. When calling from Python (`urllib`,
+scripts, tools), set an explicit User-Agent:
+
+```python
+req = urllib.request.Request(url, headers={"User-Agent": "my-tool/1.0"})
+```
 
 > **MCP alternative**: the gateway also exposes an MCP server at `$GATEWAY_URL/api/v2/mcp`
 > (Streamable HTTP). The fetch below maps to the `get_page_by_uuid` MCP tool — same
@@ -52,7 +65,7 @@ discovery is needed.
 
 ```
 GET $GATEWAY_URL/api/v2/documents/<uuid>[?type=<type>]
-Authorization: Bearer $GATEWAY_TOKEN
+Authorization: Bearer $GATEWAY_TOKEN   # optional
 ```
 
 The `type` parameter is optional. Pass it when the caller provides a path
@@ -119,6 +132,7 @@ access.
    curl -s "$GATEWAY_URL/api/v2/documents/<uuid>?type=<type>" \
      -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
    # Omit ?type=<type> when type is not provided
+   # The Authorization header is optional for reads
    ```
 4. Parse the response:
    - `pages.en` — English page (may be `null`)
@@ -189,7 +203,8 @@ A locale value of `null` means the page does not exist in that locale.
 | Situation | Action |
 |-----------|--------|
 | Gateway unreachable | Run `curl -si $GATEWAY_URL/api/v2/openapi.json` (expect `X-Served-By: wikijs-gateway`) to diagnose; do not proceed |
-| 401 / 403 | Check `GATEWAY_TOKEN` is set correctly |
+| 401 / 403 on a write | Check the admin token is set correctly |
+| 403 on a read | Reads need no token, so this is almost always Cloudflare blocking the User-Agent (body is HTML/plain text, no `X-Served-By` header). Set an explicit User-Agent and retry |
 | 404 both locales | Report `page-not-found` for uuid; stop unless user requests best-effort |
 | 404 one locale | Write available locale; note the missing one in the file header |
 | 409 `ambiguous-uuid` | Several paths differ only in case; show `candidates` to the user and retry with the exact-case uuid |

@@ -25,14 +25,21 @@ skills/<skill-name>/
 
 ## 전제 조건
 
-게이트웨이가 실행 중이어야 하고, 다음이 환경 또는 셸에 설정되어 있어야 한다.
+게이트웨이에 접근할 수 있어야 한다. `GATEWAY_URL`은 공개 endpoint로, 게이트웨이 호스트에서 실행할 때는 로컬 bind 주소로 설정한다.
 
 ```
-GATEWAY_URL=http://127.0.0.1:8088
-GATEWAY_TOKEN=<읽기-토큰>
+GATEWAY_URL=https://md-gw.zerotymer.net   # 공개 (Cloudflare 경유)
+# GATEWAY_URL=http://127.0.0.1:8088       # 로컬, 게이트웨이 호스트에서
+GATEWAY_TOKEN=<토큰>                       # 읽기는 선택
 ```
 
-모든 요청에 `Authorization: Bearer $GATEWAY_TOKEN` 헤더를 사용한다.
+**인증**: 현재 읽기 endpoint는 토큰이 필요 없다. 그래도 토큰이 있으면 `Authorization: Bearer $GATEWAY_TOKEN`을 보낸다 — 지금은 읽기에서 무시되지만 이후 버전에서 필수가 될 수 있다. 쓰기 endpoint는 항상 admin 토큰이 필요하다.
+
+**User-Agent**: 공개 endpoint는 Cloudflare 뒤에 있으며, 일부 기본 클라이언트 User-Agent를 403으로 거부한다 — 특히 Python의 `Python-urllib/3.x`. `curl`과 대부분의 HTTP 클라이언트는 문제없다. Python(`urllib`, 스크립트, 도구)에서 호출할 때는 User-Agent를 명시한다.
+
+```python
+req = urllib.request.Request(url, headers={"User-Agent": "my-tool/1.0"})
+```
 
 > **MCP 대안**: 게이트웨이는 `$GATEWAY_URL/api/v2/mcp`에서 MCP 서버(Streamable HTTP)로도
 > 동작한다. 아래 fetch는 `get_page_by_uuid` MCP tool에 대응한다 — 인증 모델 동일
@@ -45,7 +52,7 @@ GATEWAY_TOKEN=<읽기-토큰>
 
 ```
 GET $GATEWAY_URL/api/v2/documents/<uuid>[?type=<type>]
-Authorization: Bearer $GATEWAY_TOKEN
+Authorization: Bearer $GATEWAY_TOKEN   # 선택
 ```
 
 `type` 파라미터는 선택 사항이다. 호출자가 경로 prefix(예: `skill`, `guide`, `agent`)를 제공하면 전달한다. 생략하면 게이트웨이는 경로가 `/<uuid>`로 끝나는 페이지를 찾는다. uuid는 먼저 대소문자까지 정확히 비교하고, 정확히 일치하는 경로가 없을 때만 대소문자를 무시한다. 그렇게 찾은 경로가 여러 개면 하나를 고르지 않고 409 `ambiguous-uuid`(`candidates` 포함)를 반환한다. type에 관계없이 로컬 저장 위치는 항상 `skills/<name>/`이다.
@@ -89,6 +96,7 @@ curl -fOJ "$GATEWAY_URL/api/v2/documents/<uuid>/raw?locale=ko&filename=SKILL_ko"
    curl -s "$GATEWAY_URL/api/v2/documents/<uuid>?type=<type>" \
      -H "Authorization: Bearer $GATEWAY_TOKEN" | jq .
    # type을 제공하지 않은 경우 ?type=<type> 생략
+   # 읽기에서 Authorization 헤더는 선택
    ```
 4. 응답을 파싱한다.
    - `pages.en` — 영어 페이지 (`null`일 수 있음)
@@ -151,7 +159,8 @@ locale 값이 `null`이면 해당 locale 페이지가 존재하지 않는 것이
 | 상황 | 대응 |
 |------|------|
 | 게이트웨이 연결 실패 | `curl -si $GATEWAY_URL/api/v2/openapi.json` (`X-Served-By: wikijs-gateway` 헤더 확인)로 진단; 진행 중단 |
-| 401 / 403 | `GATEWAY_TOKEN`이 올바르게 설정되었는지 확인 |
+| 쓰기에서 401 / 403 | admin 토큰이 올바르게 설정되었는지 확인 |
+| 읽기에서 403 | 읽기는 토큰이 필요 없으므로 거의 항상 Cloudflare의 User-Agent 차단이다 (본문이 HTML/plain text이고 `X-Served-By` 헤더 없음). User-Agent를 명시하고 재시도 |
 | 두 locale 모두 404 | uuid에 대해 `page-not-found` 보고; 사용자가 best-effort를 요청하지 않으면 중단 |
 | 한 locale만 404 | 가능한 locale을 작성; 파일 헤더에 누락된 locale 기록 |
 | 409 `ambiguous-uuid` | 대소문자만 다른 경로가 여러 개; `candidates`를 사용자에게 보여주고 정확한 대소문자 uuid로 재시도 |
