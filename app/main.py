@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="wikijs-agent-gateway",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
     openapi_url=f"{API_PREFIX}/openapi.json",
     docs_url=None,
