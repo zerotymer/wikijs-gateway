@@ -13,6 +13,8 @@ services:
       GATEWAY_ADMIN_TOKEN: ${GATEWAY_ADMIN_TOKEN}
       AUDIT_DIR: ${AUDIT_DIR:-/audit}
       RENDER_AFTER_WRITE: ${RENDER_AFTER_WRITE:-false}
+      # Rust image only; ignored by the Python image. See .env.example.
+      MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
     restart: unless-stopped
 
 volumes:

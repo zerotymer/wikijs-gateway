@@ -137,6 +137,7 @@ API v2 (지시서 `51c7fd87`). 공개 라우트는 모두 `APIRouter(prefix="/ap
 | `AUDIT_DIR` | ❌ | patch log 저장 디렉터리 (기본: `/audit`) |
 | `BATCH_MAX_SIZE` | ❌ | `batch-get` 최대 path 수 (기본: `50`) |
 | `RENDER_AFTER_WRITE` | ❌ | write 후 `pages.render` 호출 여부 (기본: `false`) |
+| `MCP_ALLOWED_HOSTS` | ❌ (Rust판, 공개 시 사실상 필수) | `/api/v2/mcp`가 허용할 `Host` 목록 (쉼표 구분). 미설정 시 rmcp 기본값(loopback)만 허용 → 공개/내부 호스트명은 403 `Host header is not allowed`. 운영: `md-gw.zerotymer.net,md-gw.internal.zerotymer.net`. `*`는 검사 해제. Python판은 무시 |
 
 `.env`, `.env.*` 파일은 **절대 커밋하지 않는다**. `.env.example`만 커밋.
 
