@@ -1,133 +1,101 @@
 ---
 name: wiki-skill-import
-description: Use when importing a project-local skill from the Wiki.js site via wikijs-agent-gateway; fetches English and Korean pages by UUID and writes SKILL.md and SKILL_ko.md.
+description: Use when reading Wiki.js content by UUID through the fixed read-only gateway server or its MCP read tool; retrieves English and Korean Markdown without direct Wiki.js API access, curl, or scraping.
 ---
 
-# Wiki Skill Import (via wikijs-gateway)
+# Wiki Skill Import
 
-Import project-local skills from the Wiki.js site by UUID, using
-`wikijs-agent-gateway` as the data source instead of accessing Wiki.js directly.
+Read Wiki.js content by UUID through the fixed gateway server. Agents must not
+connect directly to the Wiki.js GraphQL API. The gateway is the only normal data
+access path.
 
-This skill supports two modes:
+This skill supports two read interfaces:
 
-- **Dynamic reference mode**: fetch the Wiki.js page at request time and use
-  it as context without writing files.
-- **Import mode**: fetch the Wiki.js page and write project-local skill files.
+- **MCP read interface**: use the gateway MCP server when the client supports it.
+- **REST read interface**: use the gateway HTTP endpoint when MCP is unavailable.
 
-The imported skill must follow this layout:
+Both interfaces are read-only for this skill.
+
+## Fixed Server
 
 ```text
-skills/<skill-name>/
-├── SKILL.md
-└── SKILL_ko.md
-```
-
-`SKILL.md` is the English source instruction file. `SKILL_ko.md` is the Korean
-reading copy and must stay semantically equivalent.
-
-## Prerequisites
-
-The gateway must be reachable. The default public endpoint is:
-
-```
 GATEWAY_URL=https://md-gw.zerotymer.net
+GATEWAY_MCP_URL=https://md-gw.zerotymer.net/api/v2/mcp
+GATEWAY_TOKEN=<token>   # optional for reads
 ```
 
-Read endpoints (`/health`, `/pages/by-uuid`, `/pages/by-path`, `/pages/search`,
-`/pages/by-paths`) are **public — no token required**.
+The gateway is read-only for agent use. This skill only describes content reads.
 
-Write endpoints (`/pages/patch-section`, `/pages/upsert`, `/pages/dry-run`)
-require `Authorization: Bearer $GATEWAY_ADMIN_TOKEN`. Only needed for
-modify/upsert workflows.
+## Access Rules
 
-## Fetch Strategy
+- Use only the fixed gateway server for structured content reads.
+- Prefer the MCP read tool when the client supports MCP.
+- Use the REST read endpoint when MCP is unavailable.
+- Reads do not require a token today. Send `Authorization: Bearer <GATEWAY_TOKEN>`
+  anyway when you have one; a future version may require it.
+- When calling the REST endpoint from a script, set an explicit `User-Agent`
+  (see below).
+- Do not access Wiki.js GraphQL directly.
+- Do not use `curl`.
+- Do not fetch Wiki.js HTML as the primary data source.
+- Do not scrape, parse, or extract Markdown from rendered HTML.
+- Do not modify Wiki.js content from this skill.
 
-Use `GET /pages/by-uuid` from the gateway. The gateway returns structured JSON
-containing the original Markdown `content`, `title`, `description`, `locale`,
-`path`, and `contentHash` for each locale. No HTML scraping or GraphQL schema
-discovery is needed.
+`https://md.zerotymer.net/` is the Wiki.js web UI. Use it only as a secondary
+human-facing reference when gateway access fails and the user needs help checking
+whether the page exists. It is not a data source for automated import.
 
+## MCP Read
+
+When MCP is available, connect to:
+
+```text
+https://md-gw.zerotymer.net/api/v2/mcp
 ```
-GET $GATEWAY_URL/pages/by-uuid?uuid=<uuid>[&type=<type>]
+
+Use the read tool corresponding to `get_page_by_uuid`.
+
+Input:
+
+```json
+{
+  "uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "skill"
+}
 ```
 
-No `Authorization` header needed for read requests.
+The `type` field is optional. Include it only when the caller provides a path
+prefix such as `skill`, `guide`, or `agent`. If no type is provided, omit it.
 
-The `type` parameter is optional. Pass it when the caller provides a path
-prefix (e.g. `skill`, `guide`, `agent`). When omitted the gateway resolves the
-path as `<uuid>` alone. The local save location is always `skills/<name>/`
-regardless of type.
+MCP read tools are the preferred interface because they avoid shell examples and
+keep the agent inside a structured tool contract.
 
-If the gateway returns 404 for both locales, report the failure and do not
-create partial skill files unless the user asks for a best-effort import.
+## REST Read
 
-## Dynamic vs Static
+When MCP is unavailable, retrieve English and Korean content together through the
+gateway REST read endpoint:
 
-Dynamic import is allowed.
+```text
+GET https://md-gw.zerotymer.net/api/v2/documents/<uuid>[?type=<type>]
+Authorization: Bearer <GATEWAY_TOKEN>   # optional
+```
 
-When the user provides a UUID and asks to reference, import, or refresh a skill,
-fetch the latest English and Korean content at request time. Do not rely on a
-previously downloaded copy unless the user explicitly asks for offline or static
-behavior.
+The `type` parameter follows the same rule as the MCP input: pass it only when
+the caller provides a path prefix.
 
-If the user issues a command such as `LLM-wiki <uuid> 참고해줘`, use dynamic
-reference mode by default:
+### User-Agent
 
-1. Fetch the relevant content via the gateway at request time.
-2. Load the fetched content into the working context for this request.
-3. Apply the instruction or reference content to the user's current task.
-4. Do not write or modify `skills/` files unless the user also asks to import,
-   install, update, apply permanently, or save the skill.
+The gateway sits behind Cloudflare, which rejects some default client
+User-Agents with 403 — notably Python's `Python-urllib/3.x`. Most HTTP clients
+are fine. From Python (`urllib`, scripts, tools), set an explicit User-Agent:
 
-Static storage is still the final project state: after dynamic fetch, write the
-resolved content into `skills/<skill-name>/SKILL.md` and
-`skills/<skill-name>/SKILL_ko.md` so the project remains usable without network
-access.
+```python
+req = urllib.request.Request(url, headers={"User-Agent": "my-tool/1.0"})
+```
 
-## Import Workflow
+## Response Shape
 
-1. Validate that the user provided a UUID. Ask if missing.
-2. Accept an optional `type` argument from the user (e.g. `skill`, `guide`,
-   `agent`). Leave it empty when not provided — do not default to any value.
-3. Call the gateway:
-   ```bash
-   curl -s "$GATEWAY_URL/pages/by-uuid?uuid=<uuid>&type=<type>" | jq .
-   # Omit &type=<type> when type is not provided
-   ```
-4. Parse the response:
-   - `pages.en` — English page (may be `null`)
-   - `pages.ko` — Korean page (may be `null`)
-   - Each page object contains: `content` (Markdown source), `title`,
-     `description`, `locale`, `path`, `tags`, `contentHash`
-5. If both `pages.en` and `pages.ko` are `null`, stop and report `PAGE_NOT_FOUND`.
-6. Extract the skill `name` from the English frontmatter `name:` field in
-   `content`. Fall back to the `title` field slugified if frontmatter is absent.
-7. Use `name` as `<skill-name>`.
-8. Write English content to `skills/<skill-name>/SKILL.md`.
-   - If `pages.en` is `null`, copy the Korean content and note the absence.
-9. Write Korean content to `skills/<skill-name>/SKILL_ko.md`.
-   - If `pages.ko` is `null`, copy the English content and note the absence.
-10. If Korean frontmatter is present, keep it semantically aligned with the
-    English file. If absent, copy the English frontmatter and keep the Korean body.
-11. Update `AGENTS.md` and `AGENTS_ko.md` only when the imported skill must be
-    applied automatically or referenced by this project.
-
-## Dynamic Reference Workflow
-
-Use this workflow when the user asks to reference a Wiki.js skill for the
-current task, including prompts such as `LLM-wiki <uuid> 참고해줘`.
-
-1. Validate that the user provided a UUID.
-2. Call `GET /pages/by-uuid` with the UUID (and type if provided) — no
-   auth header needed for reads.
-3. Use the fetched `content` fields as task-local context.
-4. Follow the fetched instructions when they are relevant and do not conflict
-   with higher-priority system, developer, or project instructions.
-5. Report briefly which UUID was referenced and which locales were found.
-6. Do not create or update project files unless the user explicitly requests a
-   persistent import or project-level application.
-
-## Response Structure Reference
+Both MCP and REST reads return the same logical shape:
 
 ```json
 {
@@ -139,8 +107,8 @@ current task, including prompts such as `LLM-wiki <uuid> 참고해줘`.
       "path": "skill/550e8400-...",
       "locale": "en",
       "title": "My Skill",
-      "description": "What this skill does",
-      "content": "---\nname: my-skill\ndescription: ...\n---\n# My Skill\n...",
+      "description": "...",
+      "content": "---\nname: my-skill\n---\n# My Skill\n...",
       "tags": ["skill"],
       "contentHash": "sha256..."
     },
@@ -149,22 +117,75 @@ current task, including prompts such as `LLM-wiki <uuid> 참고해줘`.
       "path": "skill/550e8400-...",
       "locale": "ko",
       "title": "내 스킬",
-      "content": "---\nname: my-skill\n...\n---\n# 내 스킬\n...",
+      "description": "...",
+      "content": "---\nname: my-skill\n---\n# 내 스킬\n...",
+      "tags": ["skill"],
       "contentHash": "sha256..."
     }
   }
 }
 ```
 
-A locale value of `null` means the page does not exist in that locale.
+If a locale is missing, that locale is `null`. If both locales are missing,
+report `PAGE_NOT_FOUND`.
+
+## Modes
+
+Dynamic reference mode:
+
+1. Read the latest content through the gateway at request time.
+2. Prefer MCP; use REST only when MCP is unavailable.
+3. Use the returned Markdown as task-local context.
+4. Do not write project files.
+
+Import mode:
+
+1. Read the latest content through the gateway at request time.
+2. Prefer MCP; use REST only when MCP is unavailable.
+3. Write local files only when the user explicitly asks to import, install,
+   refresh, save, or apply the content permanently.
+4. Preserve English and Korean as paired files.
+
+## Import Layout
+
+When importing a skill into a project, write:
+
+```text
+skills/<skill-name>/
+  SKILL.md
+  SKILL_ko.md
+```
+
+When exporting a revised Wiki.js document inside this repository, do not edit
+`md/`. Write paired copies under:
+
+```text
+.output/<uuid>/
+  en.md
+  ko.md
+  meta.json
+```
+
+## Content Rules
+
+- Use `pages.en.content` as the English Markdown source.
+- Use `pages.ko.content` as the Korean Markdown source.
+- Keep both locales semantically equivalent.
+- Keep frontmatter aligned unless a field is language-specific.
+- For skill files, the final `SKILL.md` must start with skill frontmatter
+  containing `name` and `description`; remove Wiki.js page frontmatter if it
+  would appear before the skill frontmatter.
 
 ## Error Handling
 
 | Situation | Action |
-|-----------|--------|
-| Gateway unreachable | Run `curl $GATEWAY_URL/health` to diagnose; do not proceed |
-| 401 / 403 on write | Check `GATEWAY_ADMIN_TOKEN` is set correctly |
-| 404 both locales | Report `PAGE_NOT_FOUND` for uuid; stop unless user requests best-effort |
-| 404 one locale | Write available locale; note the missing one in the file header |
-| `content` is empty | Warn the user; do not write an empty skill file |
-| No frontmatter `name` | Slugify `title` and use as skill name; warn the user |
+| --- | --- |
+| MCP unavailable | Use the REST read endpoint (no token required) |
+| Gateway unreachable | Report the fixed gateway URL and UUID; stop |
+| 403 with a plain-text/HTML body and no `X-Served-By` header | Cloudflare blocked the User-Agent; set an explicit User-Agent and retry |
+| Other 401 / 403 | Report authentication or permission failure; stop |
+| Both locales missing | Report `PAGE_NOT_FOUND`; stop unless best-effort is requested |
+| One locale missing | Use the available locale only if the user accepts a partial import |
+| Empty `content` | Warn and do not write an empty file |
+| Missing skill `name` | Derive a slug from `title`, warn, and continue only in import mode |
+
