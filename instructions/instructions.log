@@ -30,3 +30,4 @@ f8363f94-7f73-4a73-bae4-75e9e38d585c | Step 8: 역할 기반 인증 분리 (읽�
 a13a4a2b-1a69-409f-b9cb-9af6577222b8 | GitHub Actions CI + 이미지 배포 (GHCR, Docker Hub) | 2026-11-17T05:01:24Z | created
 a13a4a2b-1a69-409f-b9cb-9af6577222b8 | GitHub Actions CI + 이미지 배포 (GHCR, Docker Hub) | 2026-11-18T01:35:39Z | completed (v2.0.0 published)
 16a79e65-ea9e-457a-83d5-342b603f9b83 | Issue #24 — SKILL 문서: Cloudflare User-Agent 안내 + 읽기 토큰 선택화 | 2026-11-20T07:44:48Z | created
+16a79e65-ea9e-457a-83d5-342b603f9b83 | Issue #23·#24 — 미등록 uuid/권한없음 404 + SKILL 문서 UA 안내·읽기 토큰 선택화 | 2026-11-23T03:00:00Z | completed (v2.1.0 released)
